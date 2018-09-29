@@ -17,29 +17,26 @@
 
 use std::os::raw::c_int;
 
-use lua::*;
-use dns::dns::*;
-use dns::log::*;
+use crate::dns::dns::*;
+use crate::dns::log::*;
+use crate::lua::*;
 
 #[no_mangle]
-pub extern "C" fn rs_dns_lua_get_tx_id(clua: &mut CLuaState,
-                                       tx: &mut DNSTransaction)
-{
-    let lua = LuaState{
-        lua: clua,
-    };
+pub extern "C" fn rs_dns_lua_get_tx_id(
+    clua: &mut CLuaState,
+    tx: &mut DNSTransaction,
+) {
+    let lua = LuaState { lua: clua };
 
     lua.pushinteger(tx.tx_id() as i64);
 }
 
 #[no_mangle]
-pub extern "C" fn rs_dns_lua_get_rrname(clua: &mut CLuaState,
-                                        tx: &mut DNSTransaction)
-                                        -> c_int
-{
-    let lua = LuaState{
-        lua: clua,
-    };
+pub extern "C" fn rs_dns_lua_get_rrname(
+    clua: &mut CLuaState,
+    tx: &mut DNSTransaction,
+) -> c_int {
+    let lua = LuaState { lua: clua };
 
     for request in &tx.request {
         for query in &request.queries {
@@ -59,18 +56,15 @@ pub extern "C" fn rs_dns_lua_get_rrname(clua: &mut CLuaState,
 }
 
 #[no_mangle]
-pub extern "C" fn rs_dns_lua_get_query_table(clua: &mut CLuaState,
-                                             tx: &mut DNSTransaction)
-                                             -> c_int
-{
-    let lua = LuaState{
-        lua: clua,
-    };
+pub extern "C" fn rs_dns_lua_get_query_table(
+    clua: &mut CLuaState,
+    tx: &mut DNSTransaction,
+) -> c_int {
+    let lua = LuaState { lua: clua };
 
     let mut i: i64 = 0;
 
     for request in &tx.request {
-
         if request.queries.len() == 0 {
             break;
         }
@@ -101,18 +95,15 @@ pub extern "C" fn rs_dns_lua_get_query_table(clua: &mut CLuaState,
 }
 
 #[no_mangle]
-pub extern "C" fn rs_dns_lua_get_answer_table(clua: &mut CLuaState,
-                                              tx: &mut DNSTransaction)
-                                              -> c_int
-{
-    let lua = LuaState{
-        lua: clua,
-    };
+pub extern "C" fn rs_dns_lua_get_answer_table(
+    clua: &mut CLuaState,
+    tx: &mut DNSTransaction,
+) -> c_int {
+    let lua = LuaState { lua: clua };
 
     let mut i: i64 = 0;
 
     for response in &tx.response {
-
         if response.answers.len() == 0 {
             break;
         }
@@ -158,18 +149,15 @@ pub extern "C" fn rs_dns_lua_get_answer_table(clua: &mut CLuaState,
 }
 
 #[no_mangle]
-pub extern "C" fn rs_dns_lua_get_authority_table(clua: &mut CLuaState,
-                                                 tx: &mut DNSTransaction)
-                                                 -> c_int
-{
-    let lua = LuaState{
-        lua: clua,
-    };
+pub extern "C" fn rs_dns_lua_get_authority_table(
+    clua: &mut CLuaState,
+    tx: &mut DNSTransaction,
+) -> c_int {
+    let lua = LuaState { lua: clua };
 
     let mut i: i64 = 0;
 
     for response in &tx.response {
-
         if response.authorities.len() == 0 {
             break;
         }

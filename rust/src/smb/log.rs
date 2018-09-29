@@ -15,19 +15,17 @@
  * 02110-1301, USA.
  */
 
-extern crate libc;
-
+use crate::json::*;
+use crate::smb::dcerpc::*;
+use crate::smb::funcs::*;
+use crate::smb::smb::*;
+use crate::smb::smb1::*;
+use crate::smb::smb2::*;
 use std::str;
 use std::string::String;
-use json::*;
-use smb::smb::*;
-use smb::smb1::*;
-use smb::smb2::*;
-use smb::dcerpc::*;
-use smb::funcs::*;
 
 #[cfg(not(feature = "debug"))]
-fn debug_add_progress(_js: &Json, _tx: &SMBTransaction) { }
+fn debug_add_progress(_js: &Json, _tx: &SMBTransaction) {}
 
 #[cfg(feature = "debug")]
 fn debug_add_progress(js: &Json, tx: &SMBTransaction) {
@@ -64,8 +62,7 @@ fn guid_to_string(guid: &Vec<u8>) -> String {
     }
 }
 
-fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
-{
+fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json {
     let js = Json::object();
     js.set_integer("id", tx.id as u64);
 
@@ -75,7 +72,7 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
     } else {
         let dialect = match &state.dialect_vec {
             &Some(ref d) => str::from_utf8(&d).unwrap_or("invalid"),
-            &None        => "unknown",
+            &None => "unknown",
         };
         js.set_string("dialect", &dialect);
     }
@@ -86,14 +83,14 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
             if ok {
                 js.set_string("command", &smb1_command_string(cmd));
             }
-        },
+        }
         2 => {
             let (ok, cmd) = tx.vercmd.get_smb2_cmd();
             if ok {
                 js.set_string("command", &smb2_command_string(cmd));
             }
-        },
-        _ => { },
+        }
+        _ => {}
     }
 
     match tx.vercmd.get_ntstatus() {
@@ -102,33 +99,36 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
             js.set_string("status", &status);
             let status_hex = format!("0x{:x}", ntstatus);
             js.set_string("status_code", &status_hex);
-        },
+        }
         (false, _) => {
             match tx.vercmd.get_dos_error() {
                 (true, errclass, errcode) => {
                     match errclass {
-                        1 => { // DOSERR
+                        1 => {
+                            // DOSERR
                             let status = smb_dos_error_string(errcode);
                             js.set_string("status", &status);
-                        },
-                        2 => { // SRVERR
+                        }
+                        2 => {
+                            // SRVERR
                             let status = smb_srv_error_string(errcode);
                             js.set_string("status", &status);
                         }
                         _ => {
-                            let s = format!("UNKNOWN_{:02x}_{:04x}", errclass, errcode);
+                            let s = format!(
+                                "UNKNOWN_{:02x}_{:04x}",
+                                errclass, errcode
+                            );
                             js.set_string("status", &s);
-                        },
+                        }
                     }
                     let status_hex = format!("0x{:04x}", errcode);
                     js.set_string("status_code", &status_hex);
-                },
-                (_, _, _) => {
-                },
+                }
+                (_, _, _) => {}
             }
-        },
+        }
     }
-
 
     js.set_integer("session_id", tx.hdr.ssn_id);
     js.set_integer("tree_id", tx.hdr.tree_id as u64);
@@ -174,8 +174,8 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
                     let lm = String::from_utf8_lossy(&r.native_lm);
                     jsd.set_string("native_lm", &lm);
                     js.set("request", jsd);
-                },
-                None => { },
+                }
+                None => {}
             }
             match x.response_host {
                 Some(ref r) => {
@@ -185,13 +185,13 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
                     let lm = String::from_utf8_lossy(&r.native_lm);
                     jsd.set_string("native_lm", &lm);
                     js.set("response", jsd);
-                },
-                None => { },
+                }
+                None => {}
             }
-        },
+        }
         Some(SMBTransactionTypeData::CREATE(ref x)) => {
             let mut name_raw = x.filename.to_vec();
-            name_raw.retain(|&i|i != 0x00);
+            name_raw.retain(|&i| i != 0x00);
             if name_raw.len() > 0 {
                 let name = String::from_utf8_lossy(&name_raw);
                 if x.directory {
@@ -204,13 +204,27 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
                 js.set_string("filename", "<share_root>");
             }
             match x.disposition {
-                0 => { js.set_string("disposition", "FILE_SUPERSEDE"); },
-                1 => { js.set_string("disposition", "FILE_OPEN"); },
-                2 => { js.set_string("disposition", "FILE_CREATE"); },
-                3 => { js.set_string("disposition", "FILE_OPEN_IF"); },
-                4 => { js.set_string("disposition", "FILE_OVERWRITE"); },
-                5 => { js.set_string("disposition", "FILE_OVERWRITE_IF"); },
-                _ => { js.set_string("disposition", "UNKNOWN"); },
+                0 => {
+                    js.set_string("disposition", "FILE_SUPERSEDE");
+                }
+                1 => {
+                    js.set_string("disposition", "FILE_OPEN");
+                }
+                2 => {
+                    js.set_string("disposition", "FILE_CREATE");
+                }
+                3 => {
+                    js.set_string("disposition", "FILE_OPEN_IF");
+                }
+                4 => {
+                    js.set_string("disposition", "FILE_OVERWRITE");
+                }
+                5 => {
+                    js.set_string("disposition", "FILE_OVERWRITE_IF");
+                }
+                _ => {
+                    js.set_string("disposition", "UNKNOWN");
+                }
             }
             if x.delete_on_close {
                 js.set_string("access", "delete on close");
@@ -227,7 +241,7 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
 
             let gs = fuid_to_string(&x.guid);
             js.set_string("fuid", &gs);
-        },
+        }
         Some(SMBTransactionTypeData::NEGOTIATE(ref x)) => {
             if x.smb_ver == 1 {
                 let jsa = Json::array();
@@ -250,7 +264,7 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
             }
 
             js.set_string("server_guid", &guid_to_string(&x.server_guid));
-        },
+        }
         Some(SMBTransactionTypeData::TREECONNECT(ref x)) => {
             js.set_integer("tree_id", x.tree_id as u64);
 
@@ -278,13 +292,21 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
             // share type only for SMB2
             } else {
                 match x.share_type {
-                    1 => { js.set_string("share_type", "FILE"); },
-                    2 => { js.set_string("share_type", "PIPE"); },
-                    3 => { js.set_string("share_type", "PRINT"); },
-                    _ => { js.set_string("share_type", "UNKNOWN"); },
+                    1 => {
+                        js.set_string("share_type", "FILE");
+                    }
+                    2 => {
+                        js.set_string("share_type", "PIPE");
+                    }
+                    3 => {
+                        js.set_string("share_type", "PRINT");
+                    }
+                    _ => {
+                        js.set_string("share_type", "UNKNOWN");
+                    }
                 }
             }
-        },
+        }
         Some(SMBTransactionTypeData::FILE(ref x)) => {
             let file_name = String::from_utf8_lossy(&x.file_name);
             js.set_string("filename", &file_name);
@@ -292,7 +314,7 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
             js.set_string("share", &share_name);
             let gs = fuid_to_string(&x.fuid);
             js.set_string("fuid", &gs);
-        },
+        }
         Some(SMBTransactionTypeData::RENAME(ref x)) => {
             if tx.vercmd.get_version() == 2 {
                 let jsd = Json::object();
@@ -309,7 +331,7 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
             js.set("rename", jsd);
             let gs = fuid_to_string(&x.fuid);
             js.set_string("fuid", &gs);
-        },
+        }
         Some(SMBTransactionTypeData::DCERPC(ref x)) => {
             let jsd = Json::object();
             if x.req_set {
@@ -375,10 +397,10 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
         }
         Some(SMBTransactionTypeData::IOCTL(ref x)) => {
             js.set_string("function", &fsctl_func_to_string(x.func));
-        },
+        }
         Some(SMBTransactionTypeData::SETFILEPATHINFO(ref x)) => {
             let mut name_raw = x.filename.to_vec();
-            name_raw.retain(|&i|i != 0x00);
+            name_raw.retain(|&i| i != 0x00);
             if name_raw.len() > 0 {
                 let name = String::from_utf8_lossy(&name_raw);
                 js.set_string("filename", &name);
@@ -395,39 +417,46 @@ fn smb_common_header(state: &SMBState, tx: &SMBTransaction) -> Json
             match x.subcmd {
                 8 => {
                     js.set_string("subcmd", "SET_FILE_INFO");
-                },
+                }
                 6 => {
                     js.set_string("subcmd", "SET_PATH_INFO");
-                },
-                _ => { },
+                }
+                _ => {}
             }
 
             match x.loi {
-                1013 => { // Set Disposition Information
-                    js.set_string("level_of_interest", "Set Disposition Information");
-                },
-                _ => { },
+                1013 => {
+                    // Set Disposition Information
+                    js.set_string(
+                        "level_of_interest",
+                        "Set Disposition Information",
+                    );
+                }
+                _ => {}
             }
 
             let gs = fuid_to_string(&x.fid);
             js.set_string("fuid", &gs);
-        },
-        _ => {  },
+        }
+        _ => {}
     }
     return js;
 }
 
 #[no_mangle]
-pub extern "C" fn rs_smb_log_json_request(state: &mut SMBState, tx: &mut SMBTransaction) -> *mut JsonT
-{
+pub extern "C" fn rs_smb_log_json_request(
+    state: &mut SMBState,
+    tx: &mut SMBTransaction,
+) -> *mut JsonT {
     let js = smb_common_header(state, tx);
     return js.unwrap();
 }
 
 #[no_mangle]
-pub extern "C" fn rs_smb_log_json_response(state: &mut SMBState, tx: &mut SMBTransaction) -> *mut JsonT
-{
+pub extern "C" fn rs_smb_log_json_response(
+    state: &mut SMBState,
+    tx: &mut SMBTransaction,
+) -> *mut JsonT {
     let js = smb_common_header(state, tx);
     return js.unwrap();
 }
-

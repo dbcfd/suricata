@@ -15,13 +15,13 @@
  * 02110-1301, USA.
  */
 
-use nom::{le_u16, le_u32, le_u64};
+use nom::*;
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Smb3TransformRecord<'a> {
     pub session_id: u64,
     pub enc_algo: u16,
-    pub enc_data: &'a[u8],
+    pub enc_data: &'a [u8],
 }
 
 named!(pub parse_smb3_transform_record<Smb3TransformRecord>,

@@ -15,6 +15,7 @@
  * 02110-1301, USA.
  */
 
+use nom::*;
 use std;
 
 fn parse_len(input: &str) -> Result<u32, std::num::ParseIntError> {
@@ -35,8 +36,8 @@ named!(pub parse_message<String>,
 #[cfg(test)]
 mod tests {
 
-    use nom::*;
     use super::*;
+    use nom::*;
 
     /// Simple test of some valid data.
     #[test]
