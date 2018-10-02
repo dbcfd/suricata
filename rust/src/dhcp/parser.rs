@@ -122,7 +122,7 @@ named!(pub parse_clientid_option<DHCPOption>,
        do_parse!(
            code: be_u8 >>
            len: be_u8 >>
-           htype: be_u8 >>
+           _htype: be_u8 >>
            data: take!(len - 1) >>
                (
                    DHCPOption{
@@ -140,7 +140,7 @@ named!(pub parse_clientid_option<DHCPOption>,
 named!(pub parse_address_time_option<DHCPOption>,
        do_parse!(
            code: be_u8 >>
-           len: be_u8 >>
+           _len: be_u8 >>
            seconds: be_u32 >>
                (
                    DHCPOption{
@@ -192,50 +192,43 @@ named!(pub parse_option<DHCPOption>,
 
 /// Parse and return all the options. Upon the end of option indicator
 /// all the data will be consumed.
-named!(pub parse_all_options<Vec<DHCPOption>>, many0!(call!(parse_option)));
+named!(pub parse_all_options<Vec<DHCPOption>>, many0!(complete!(call!(parse_option))));
 
 pub fn dhcp_parse(input: &[u8]) -> IResult<&[u8], DHCPMessage> {
-    match parse_header(input) {
-        IResult::Done(rem, header) => {
-            let mut options = Vec::new();
-            let mut next = rem;
-            let mut malformed_options = false;
-            let mut truncated_options = false;
-            loop {
-                match parse_option(next) {
-                    IResult::Done(rem, option) => {
-                        let done = option.code == DHCP_OPT_END;
-                        options.push(option);
-                        next = rem;
-                        if done {
-                            break;
-                        }
-                    }
-                    IResult::Incomplete(_) => {
-                        truncated_options = true;
-                        break;
-                    }
-                    IResult::Error(_) => {
-                        malformed_options = true;
+    parse_header(input).map(|t| {
+        let (rem, header) = t;
+        let mut options = Vec::new();
+        let mut next = rem;
+        let mut malformed_options = false;
+        let mut truncated_options = false;
+        loop {
+            match parse_option(next) {
+                Ok( (rem, option) ) => {
+                    let done = option.code == DHCP_OPT_END;
+                    options.push(option);
+                    next = rem;
+                    if done {
                         break;
                     }
                 }
+                Err(nom::Err::Incomplete(_)) => {
+                    truncated_options = true;
+                    break;
+                }
+                Err(_) => {
+                    malformed_options = true;
+                    break;
+                }
             }
-            let message = DHCPMessage {
-                header: header,
-                options: options,
-                malformed_options: malformed_options,
-                truncated_options: truncated_options,
-            };
-            return IResult::Done(next, message);
         }
-        IResult::Error(err) => {
-            return IResult::Error(err);
-        }
-        IResult::Incomplete(incomplete) => {
-            return IResult::Incomplete(incomplete);
-        }
-    }
+        let message = DHCPMessage {
+            header: header,
+            options: options,
+            malformed_options: malformed_options,
+            truncated_options: truncated_options,
+        };
+        (next, message)
+    })
 }
 
 #[cfg(test)]
@@ -248,42 +241,36 @@ mod tests {
         let pcap = include_bytes!("discover.pcap");
         let payload = &pcap[24 + 16 + 42..];
 
-        match dhcp_parse(payload) {
-            IResult::Done(_rem, message) => {
-                let header = message.header;
-                assert_eq!(header.opcode, BOOTP_REQUEST);
-                assert_eq!(header.htype, 1);
-                assert_eq!(header.hlen, 6);
-                assert_eq!(header.hops, 0);
-                assert_eq!(header.txid, 0x00003d1d);
-                assert_eq!(header.seconds, 0);
-                assert_eq!(header.flags, 0);
-                assert_eq!(header.clientip, &[0, 0, 0, 0]);
-                assert_eq!(header.yourip, &[0, 0, 0, 0]);
-                assert_eq!(header.serverip, &[0, 0, 0, 0]);
-                assert_eq!(header.giaddr, &[0, 0, 0, 0]);
-                assert_eq!(
-                    &header.clienthw[..(header.hlen as usize)],
-                    &[0x00, 0x0b, 0x82, 0x01, 0xfc, 0x42]
-                );
-                assert!(header.servername.iter().all(|&x| x == 0));
-                assert!(header.bootfilename.iter().all(|&x| x == 0));
-                assert_eq!(header.magic, &[0x63, 0x82, 0x53, 0x63]);
+        let (_, message) = dhcp_parse(payload).expect("Failed to parse");
+        let header = message.header;
+        assert_eq!(header.opcode, BOOTP_REQUEST);
+        assert_eq!(header.htype, 1);
+        assert_eq!(header.hlen, 6);
+        assert_eq!(header.hops, 0);
+        assert_eq!(header.txid, 0x00003d1d);
+        assert_eq!(header.seconds, 0);
+        assert_eq!(header.flags, 0);
+        assert_eq!(header.clientip, &[0, 0, 0, 0]);
+        assert_eq!(header.yourip, &[0, 0, 0, 0]);
+        assert_eq!(header.serverip, &[0, 0, 0, 0]);
+        assert_eq!(header.giaddr, &[0, 0, 0, 0]);
+        assert_eq!(
+            &header.clienthw[..(header.hlen as usize)],
+            &[0x00, 0x0b, 0x82, 0x01, 0xfc, 0x42]
+        );
+        assert!(header.servername.iter().all(|&x| x == 0));
+        assert!(header.bootfilename.iter().all(|&x| x == 0));
+        assert_eq!(header.magic, &[0x63, 0x82, 0x53, 0x63]);
 
-                assert!(!message.malformed_options);
-                assert!(!message.truncated_options);
+        assert!(!message.malformed_options);
+        assert!(!message.truncated_options);
 
-                assert_eq!(message.options.len(), 5);
-                assert_eq!(message.options[0].code, DHCP_OPT_TYPE);
-                assert_eq!(message.options[1].code, DHCP_OPT_CLIENT_ID);
-                assert_eq!(message.options[2].code, DHCP_OPT_REQUESTED_IP);
-                assert_eq!(message.options[3].code, DHCP_OPT_PARAMETER_LIST);
-                assert_eq!(message.options[4].code, DHCP_OPT_END);
-            }
-            _ => {
-                assert!(false);
-            }
-        }
+        assert_eq!(message.options.len(), 5);
+        assert_eq!(message.options[0].code, DHCP_OPT_TYPE);
+        assert_eq!(message.options[1].code, DHCP_OPT_CLIENT_ID);
+        assert_eq!(message.options[2].code, DHCP_OPT_REQUESTED_IP);
+        assert_eq!(message.options[3].code, DHCP_OPT_PARAMETER_LIST);
+        assert_eq!(message.options[4].code, DHCP_OPT_END);
     }
 
 }

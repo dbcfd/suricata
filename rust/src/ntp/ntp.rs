@@ -28,8 +28,6 @@ use std::ffi::{CStr, CString};
 
 use crate::log::*;
 
-use nom::IResult;
-
 #[repr(u32)]
 pub enum NTPEvent {
     UnsolicitedResponse = 0,
@@ -82,7 +80,7 @@ impl NTPState {
     /// Returns The number of messages parsed, or -1 on error
     fn parse(&mut self, i: &[u8], _direction: u8) -> i32 {
         match parse_ntp(i) {
-            IResult::Done(_, ref msg) => {
+            Ok( (_, msg) ) => {
                 // SCLogDebug!("parse_ntp: {:?}",msg);
                 if msg.mode == NtpMode::SymmetricActive
                     || msg.mode == NtpMode::Client
@@ -94,12 +92,12 @@ impl NTPState {
                 }
                 1
             }
-            IResult::Incomplete(_) => {
+            Err(nom::Err::Incomplete(_)) => {
                 SCLogDebug!("Insufficient data while parsing NTP data");
                 self.set_event(NTPEvent::MalformedData);
                 -1
             }
-            IResult::Error(_) => {
+            Err(_e) => {
                 SCLogDebug!("Error while parsing NTP data");
                 self.set_event(NTPEvent::MalformedData);
                 -1
@@ -343,17 +341,17 @@ pub extern "C" fn ntp_probing_parser(
     };
     let alproto = unsafe { ALPROTO_NTP };
     match parse_ntp(slice) {
-        IResult::Done(_, ref msg) => {
+        Ok( (_, msg) ) => {
             if msg.version == 3 || msg.version == 4 {
                 return alproto;
             } else {
                 return unsafe { ALPROTO_FAILED };
             }
         }
-        IResult::Incomplete(_) => {
+        Err(nom::Err::Incomplete(_)) => {
             return ALPROTO_UNKNOWN;
         }
-        IResult::Error(_) => {
+        Err(_) => {
             return unsafe { ALPROTO_FAILED };
         }
     }

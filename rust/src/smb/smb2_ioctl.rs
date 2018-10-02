@@ -22,7 +22,6 @@ use crate::smb::funcs::*;
 use crate::smb::smb::*;
 use crate::smb::smb2::*;
 use crate::smb::smb2_records::*;
-use nom::IResult;
 
 #[derive(Debug)]
 pub struct SMBTransactionIoctl {
@@ -63,44 +62,41 @@ impl SMBState {
 
 // IOCTL responses ASYNC don't set the tree id
 pub fn smb2_ioctl_request_record<'b>(state: &mut SMBState, r: &Smb2Record<'b>) {
-    match parse_smb2_request_ioctl(r.data) {
-        IResult::Done(_, rd) => {
-            SCLogDebug!("IOCTL request data: {:?}", rd);
-            let is_dcerpc =
-                rd.is_pipe && match state.get_service_for_guid(&rd.guid) {
-                    (_, x) => x,
-                };
-            let hdr = SMBCommonHdr::new(
-                SMBHDR_TYPE_HEADER,
-                r.session_id,
-                0,
-                r.message_id,
+    if let Ok( (_, rd) ) = parse_smb2_request_ioctl(r.data) {
+        SCLogDebug!("IOCTL request data: {:?}", rd);
+        let is_dcerpc =
+            rd.is_pipe && match state.get_service_for_guid(&rd.guid) {
+                (_, x) => x,
+            };
+        let hdr = SMBCommonHdr::new(
+            SMBHDR_TYPE_HEADER,
+            r.session_id,
+            0,
+            r.message_id,
+        );
+        if is_dcerpc {
+            SCLogDebug!("IOCTL request data is_pipe. Calling smb_write_dcerpc_record");
+            let vercmd = SMBVerCmdStat::new2(SMB2_COMMAND_IOCTL);
+            smb_write_dcerpc_record(state, vercmd, hdr, rd.data);
+        } else {
+            SCLogDebug!(
+                "IOCTL {:08x} {}",
+                rd.function,
+                &fsctl_func_to_string(rd.function)
             );
-            if is_dcerpc {
-                SCLogDebug!("IOCTL request data is_pipe. Calling smb_write_dcerpc_record");
-                let vercmd = SMBVerCmdStat::new2(SMB2_COMMAND_IOCTL);
-                smb_write_dcerpc_record(state, vercmd, hdr, rd.data);
-            } else {
-                SCLogDebug!(
-                    "IOCTL {:08x} {}",
-                    rd.function,
-                    &fsctl_func_to_string(rd.function)
-                );
-                let tx = state.new_ioctl_tx(hdr, rd.function);
-                tx.vercmd.set_smb2_cmd(SMB2_COMMAND_IOCTL);
-            }
+            let tx = state.new_ioctl_tx(hdr, rd.function);
+            tx.vercmd.set_smb2_cmd(SMB2_COMMAND_IOCTL);
         }
-        _ => {
-            let hdr = SMBCommonHdr::new(
-                SMBHDR_TYPE_HEADER,
-                r.session_id,
-                0,
-                r.message_id,
-            );
-            let tx = state.new_generic_tx(2, r.command, hdr);
-            tx.set_event(SMBEvent::MalformedData);
-        }
-    };
+    } else {
+        let hdr = SMBCommonHdr::new(
+            SMBHDR_TYPE_HEADER,
+            r.session_id,
+            0,
+            r.message_id,
+        );
+        let tx = state.new_generic_tx(2, r.command, hdr);
+        tx.set_event(SMBEvent::MalformedData);
+    }
 }
 
 // IOCTL responses ASYNC don't set the tree id
@@ -108,51 +104,28 @@ pub fn smb2_ioctl_response_record<'b>(
     state: &mut SMBState,
     r: &Smb2Record<'b>,
 ) {
-    match parse_smb2_response_ioctl(r.data) {
-        IResult::Done(_, rd) => {
-            SCLogDebug!("IOCTL response data: {:?}", rd);
+    if let Ok( (_, rd) ) = parse_smb2_response_ioctl(r.data) {
+        SCLogDebug!("IOCTL response data: {:?}", rd);
 
-            let is_dcerpc =
-                rd.is_pipe && match state.get_service_for_guid(&rd.guid) {
-                    (_, x) => x,
-                };
-            if is_dcerpc {
-                SCLogDebug!("IOCTL response data is_pipe. Calling smb_read_dcerpc_record");
-                let hdr = SMBCommonHdr::new(
-                    SMBHDR_TYPE_HEADER,
-                    r.session_id,
-                    0,
-                    r.message_id,
-                );
-                let vercmd = SMBVerCmdStat::new2_with_ntstatus(
-                    SMB2_COMMAND_IOCTL,
-                    r.nt_status,
-                );
-                SCLogDebug!("TODO passing empty GUID");
-                smb_read_dcerpc_record(state, vercmd, hdr, &[], rd.data);
-            } else {
-                let tx_key = SMBCommonHdr::new(
-                    SMBHDR_TYPE_HEADER,
-                    r.session_id,
-                    0,
-                    r.message_id,
-                );
-                SCLogDebug!(
-                    "SMB2_COMMAND_IOCTL/SMB_NTSTATUS_PENDING looking for {:?}",
-                    tx_key
-                );
-                match state.get_generic_tx(2, SMB2_COMMAND_IOCTL, &tx_key) {
-                    Some(tx) => {
-                        tx.set_status(r.nt_status, false);
-                        if r.nt_status != SMB_NTSTATUS_PENDING {
-                            tx.response_done = true;
-                        }
-                    }
-                    None => {}
-                }
-            }
-        }
-        _ => {
+        let is_dcerpc =
+            rd.is_pipe && match state.get_service_for_guid(&rd.guid) {
+                (_, x) => x,
+            };
+        if is_dcerpc {
+            SCLogDebug!("IOCTL response data is_pipe. Calling smb_read_dcerpc_record");
+            let hdr = SMBCommonHdr::new(
+                SMBHDR_TYPE_HEADER,
+                r.session_id,
+                0,
+                r.message_id,
+            );
+            let vercmd = SMBVerCmdStat::new2_with_ntstatus(
+                SMB2_COMMAND_IOCTL,
+                r.nt_status,
+            );
+            SCLogDebug!("TODO passing empty GUID");
+            smb_read_dcerpc_record(state, vercmd, hdr, &[], rd.data);
+        } else {
             let tx_key = SMBCommonHdr::new(
                 SMBHDR_TYPE_HEADER,
                 r.session_id,
@@ -163,21 +136,35 @@ pub fn smb2_ioctl_response_record<'b>(
                 "SMB2_COMMAND_IOCTL/SMB_NTSTATUS_PENDING looking for {:?}",
                 tx_key
             );
-            match state.get_generic_tx(2, SMB2_COMMAND_IOCTL, &tx_key) {
-                Some(tx) => {
-                    SCLogDebug!("updated status of tx {}", tx.id);
-                    tx.set_status(r.nt_status, false);
-                    if r.nt_status != SMB_NTSTATUS_PENDING {
-                        tx.response_done = true;
-                    }
-
-                    // parsing failed for 'SUCCESS' record, set event
-                    if r.nt_status == SMB_NTSTATUS_SUCCESS {
-                        SCLogDebug!("parse fail {:?}", r);
-                        tx.set_event(SMBEvent::MalformedData);
-                    }
+            if let Some(tx) = state.get_generic_tx(2, SMB2_COMMAND_IOCTL, &tx_key) {
+                tx.set_status(r.nt_status, false);
+                if r.nt_status != SMB_NTSTATUS_PENDING {
+                    tx.response_done = true;
                 }
-                _ => {}
+            }
+        }
+    } else {
+        let tx_key = SMBCommonHdr::new(
+            SMBHDR_TYPE_HEADER,
+            r.session_id,
+            0,
+            r.message_id,
+        );
+        SCLogDebug!(
+            "SMB2_COMMAND_IOCTL/SMB_NTSTATUS_PENDING looking for {:?}",
+            tx_key
+        );
+        if let Some(tx) = state.get_generic_tx(2, SMB2_COMMAND_IOCTL, &tx_key) {
+            SCLogDebug!("updated status of tx {}", tx.id);
+            tx.set_status(r.nt_status, false);
+            if r.nt_status != SMB_NTSTATUS_PENDING {
+                tx.response_done = true;
+            }
+
+            // parsing failed for 'SUCCESS' record, set event
+            if r.nt_status == SMB_NTSTATUS_SUCCESS {
+                SCLogDebug!("parse fail {:?}", r);
+                tx.set_event(SMBEvent::MalformedData);
             }
         }
     };

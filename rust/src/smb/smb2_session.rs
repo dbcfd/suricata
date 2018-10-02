@@ -14,9 +14,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA.
  */
-
-use nom::IResult;
-
 use crate::log::*;
 
 use crate::smb::smb::*;
@@ -26,23 +23,18 @@ use crate::smb::auth::*;
 
 pub fn smb2_session_setup_request(state: &mut SMBState, r: &Smb2Record) {
     SCLogDebug!("SMB2_COMMAND_SESSION_SETUP: r.data.len() {}", r.data.len());
-    match parse_smb2_request_session_setup(r.data) {
-        IResult::Done(_, setup) => {
-            let hdr = SMBCommonHdr::from2(r, SMBHDR_TYPE_HEADER);
-            let tx = state.new_sessionsetup_tx(hdr);
-            tx.vercmd.set_smb2_cmd(r.command);
+    if let Ok( (_, setup) ) = parse_smb2_request_session_setup(r.data) {
+        let hdr = SMBCommonHdr::from2(r, SMBHDR_TYPE_HEADER);
+        let tx = state.new_sessionsetup_tx(hdr);
+        tx.vercmd.set_smb2_cmd(r.command);
 
-            if let Some(SMBTransactionTypeData::SESSIONSETUP(ref mut td)) =
-                tx.type_data
-            {
-                if let Some(s) = parse_secblob(setup.data) {
-                    td.ntlmssp = s.ntlmssp;
-                    td.krb_ticket = s.krb;
-                }
+        if let Some(SMBTransactionTypeData::SESSIONSETUP(ref mut td)) =
+            tx.type_data
+        {
+            if let Some(s) = parse_secblob(setup.data) {
+                td.ntlmssp = s.ntlmssp;
+                td.krb_ticket = s.krb;
             }
-        }
-        _ => {
-            //                events.push(SMBEvent::MalformedData);
         }
     }
 }

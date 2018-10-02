@@ -15,8 +15,6 @@
  * 02110-1301, USA.
  */
 
-use nom::IResult;
-
 use crate::log::*;
 
 use crate::smb::auth::*;
@@ -46,17 +44,18 @@ pub fn smb1_session_setup_request_host_info(
         let offset = r.data.len() - blob.len();
         let blob = if offset % 2 == 1 { &blob[1..] } else { blob };
         let (native_os, native_lm, primary_domain) =
-            match smb_get_unicode_string(blob) {
-                IResult::Done(rem, n1) => match smb_get_unicode_string(rem) {
-                    IResult::Done(rem, n2) => {
-                        match smb_get_unicode_string(rem) {
-                            IResult::Done(_, n3) => (n1, n2, n3),
-                            _ => (n1, n2, Vec::new()),
-                        }
+            if let Ok((rem, n1)) = smb_get_unicode_string(blob) {
+                if let Ok((rem2, n2)) = smb_get_unicode_string(rem) {
+                    if let Ok((_, n3)) = smb_get_unicode_string(rem2) {
+                        (n1, n2, n3)
+                    } else {
+                        (n1, n2, Vec::new())
                     }
-                    _ => (n1, Vec::new(), Vec::new()),
-                },
-                _ => (Vec::new(), Vec::new(), Vec::new()),
+                } else {
+                    (n1, Vec::new(), Vec::new())
+                }
+            } else {
+                (Vec::new(), Vec::new(), Vec::new())
             };
 
         SCLogDebug!(
@@ -72,15 +71,18 @@ pub fn smb1_session_setup_request_host_info(
         }
     } else {
         let (native_os, native_lm, primary_domain) =
-            match smb_get_ascii_string(blob) {
-                IResult::Done(rem, n1) => match smb_get_ascii_string(rem) {
-                    IResult::Done(rem, n2) => match smb_get_ascii_string(rem) {
-                        IResult::Done(_, n3) => (n1, n2, n3),
-                        _ => (n1, n2, Vec::new()),
-                    },
-                    _ => (n1, Vec::new(), Vec::new()),
-                },
-                _ => (Vec::new(), Vec::new(), Vec::new()),
+            if let Ok( (rem, n1) ) = smb_get_ascii_string(blob) {
+                if let Ok((rem2, n2)) = smb_get_ascii_string(rem) {
+                    if let Ok((_, n3)) = smb_get_ascii_string(rem2) {
+                        (n1, n2, n3)
+                    } else {
+                        (n1, n2, Vec::new())
+                    }
+                } else {
+                    (n1, Vec::new(), Vec::new())
+                }
+            } else {
+                (Vec::new(), Vec::new(), Vec::new())
             };
 
         SCLogDebug!("session_setup_request_host_info: not unicode");
@@ -99,12 +101,14 @@ pub fn smb1_session_setup_response_host_info(
     if blob.len() > 1 && r.has_unicode_support() {
         let offset = r.data.len() - blob.len();
         let blob = if offset % 2 == 1 { &blob[1..] } else { blob };
-        let (native_os, native_lm) = match smb_get_unicode_string(blob) {
-            IResult::Done(rem, n1) => match smb_get_unicode_string(rem) {
-                IResult::Done(_, n2) => (n1, n2),
-                _ => (n1, Vec::new()),
-            },
-            _ => (Vec::new(), Vec::new()),
+        let (native_os, native_lm) = if let Ok( (rem, n1) ) = smb_get_unicode_string(blob) {
+            if let Ok((_, n2)) = smb_get_unicode_string(rem) {
+                (n1, n2)
+            } else {
+                (n1, Vec::new())
+            }
+        } else {
+            (Vec::new(), Vec::new())
         };
 
         SCLogDebug!("name1 {:?} name2 {:?}", native_os, native_lm);
@@ -114,12 +118,14 @@ pub fn smb1_session_setup_response_host_info(
         }
     } else {
         SCLogDebug!("session_setup_response_host_info: not unicode");
-        let (native_os, native_lm) = match smb_get_ascii_string(blob) {
-            IResult::Done(rem, n1) => match smb_get_ascii_string(rem) {
-                IResult::Done(_, n2) => (n1, n2),
-                _ => (n1, Vec::new()),
-            },
-            _ => (Vec::new(), Vec::new()),
+        let (native_os, native_lm) = if let Ok( (rem, n1) ) = smb_get_ascii_string(blob) {
+            if let Ok((_, n2)) = smb_get_ascii_string(rem) {
+                (n1, n2)
+            } else {
+                (n1, Vec::new())
+            }
+        } else {
+            (Vec::new(), Vec::new())
         };
         SessionSetupResponse {
             native_os: native_os,
@@ -130,50 +136,45 @@ pub fn smb1_session_setup_response_host_info(
 
 pub fn smb1_session_setup_request(state: &mut SMBState, r: &SmbRecord) {
     SCLogDebug!("SMB1_COMMAND_SESSION_SETUP_ANDX user_id {}", r.user_id);
-    match parse_smb_setup_andx_record(r.data) {
-        IResult::Done(rem, setup) => {
-            let hdr = SMBCommonHdr::new(
-                SMBHDR_TYPE_HEADER,
-                r.ssn_id as u64,
-                0,
-                r.multiplex_id as u64,
-            );
-            let tx = state.new_sessionsetup_tx(hdr);
-            tx.vercmd.set_smb1_cmd(r.command);
+    if let Ok( (rem, setup) ) = parse_smb_setup_andx_record(r.data) {
+        let hdr = SMBCommonHdr::new(
+            SMBHDR_TYPE_HEADER,
+            r.ssn_id as u64,
+            0,
+            r.multiplex_id as u64,
+        );
+        let tx = state.new_sessionsetup_tx(hdr);
+        tx.vercmd.set_smb1_cmd(r.command);
 
-            if let Some(SMBTransactionTypeData::SESSIONSETUP(ref mut td)) =
-                tx.type_data
-            {
-                match parse_secblob(setup.sec_blob) {
-                    Some(s) => {
-                        td.ntlmssp = s.ntlmssp;
-                        td.krb_ticket = s.krb;
-                    }
-                    None => {}
+        if let Some(SMBTransactionTypeData::SESSIONSETUP(ref mut td)) =
+            tx.type_data
+        {
+            match parse_secblob(setup.sec_blob) {
+                Some(s) => {
+                    td.ntlmssp = s.ntlmssp;
+                    td.krb_ticket = s.krb;
                 }
-                td.request_host =
-                    Some(smb1_session_setup_request_host_info(r, rem));
+                None => {}
             }
-        }
-        _ => {
-            // events.push(SMBEvent::MalformedData);
+            td.request_host =
+                Some(smb1_session_setup_request_host_info(r, rem));
         }
     }
+//    else
+//        events.push(SMBEvent::MalformedData);
+//    }
 }
 
 fn smb1_session_setup_update_tx(tx: &mut SMBTransaction, r: &SmbRecord) {
-    match parse_smb_response_setup_andx_record(r.data) {
-        IResult::Done(rem, _setup) => {
-            if let Some(SMBTransactionTypeData::SESSIONSETUP(ref mut td)) =
-                tx.type_data
-            {
-                td.response_host =
-                    Some(smb1_session_setup_response_host_info(r, rem));
-            }
+    if let Ok( (rem, _) ) = parse_smb_response_setup_andx_record(r.data) {
+        if let Some(SMBTransactionTypeData::SESSIONSETUP(ref mut td)) =
+            tx.type_data
+        {
+            td.response_host =
+                Some(smb1_session_setup_response_host_info(r, rem));
         }
-        _ => {
-            tx.set_event(SMBEvent::MalformedData);
-        }
+    } else {
+        tx.set_event(SMBEvent::MalformedData);
     }
     // update tx even if we can't parse the response
     tx.hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_HEADER); // to overwrite ssn_id 0

@@ -26,17 +26,14 @@ use crate::nfs::nfs3_records::*;
 use crate::nfs::rpc_records::*;
 use crate::nfs::types::*;
 
-/// nom bug leads to this wrappers being necessary
-/// TODO for some reason putting these in parser.rs and making them public
-/// leads to a compile error wrt an unknown lifetime identifier 'a
-//named!(many0_nfs3_request_objects<Vec<Nfs3RequestObject<'a>>>, many0!(parse_nfs3_request_object));
-//named!(many0_nfs3_reply_objects<Vec<Nfs3ReplyObject<'a>>>, many0!(parse_nfs3_reply_object));
-named!(
-    many0_nfs3_response_readdirplus_entries<
-        Vec<Nfs3ResponseReaddirplusEntry<'a>>,
-    >,
-    many0!(parse_nfs3_response_readdirplus_entry_cond)
-);
+pub fn many0_nfs3_response_readdirplus_entries<'a>(input: &'a [u8]) -> IResult<&'a[u8], Vec<Nfs3ResponseReaddirplusEntry<'a>>> {
+    do_parse!(input,
+
+        res: many0!(complete!(parse_nfs3_response_readdirplus_entry_cond)) >>
+
+        (res)
+    )
+}
 
 impl NFSState {
     /// complete NFS3 request record
@@ -56,139 +53,121 @@ impl NFSState {
             self.nfs_version = r.progver as u16;
         }
 
-        if r.procedure == NFSPROC3_LOOKUP {
-            self.process_request_record_lookup(r, &mut xidmap);
-        } else if r.procedure == NFSPROC3_ACCESS {
-            match parse_nfs3_request_access(r.prog_data) {
-                IResult::Done(_, ar) => {
+        match r.procedure {
+            NFSPROC3_LOOKUP => {
+                self.process_request_record_lookup(r, &mut xidmap);
+            }
+            NFSPROC3_ACCESS => {
+                if let Ok((_, ar)) = parse_nfs3_request_access(r.prog_data) {
                     xidmap.file_handle = ar.handle.value.to_vec();
                     self.xidmap_handle2name(&mut xidmap);
-                }
-                _ => {
+                } else {
                     self.set_event(NFSEvent::MalformedData);
-                }
-            };
-        } else if r.procedure == NFSPROC3_GETATTR {
-            match parse_nfs3_request_getattr(r.prog_data) {
-                IResult::Done(_, gar) => {
+                };
+            }
+            NFSPROC3_GETATTR  => {
+                if let Ok((_, gar)) = parse_nfs3_request_getattr(r.prog_data) {
                     xidmap.file_handle = gar.handle.value.to_vec();
                     self.xidmap_handle2name(&mut xidmap);
-                }
-                _ => {
+                } else {
                     self.set_event(NFSEvent::MalformedData);
-                }
-            };
-        } else if r.procedure == NFSPROC3_READDIRPLUS {
-            match parse_nfs3_request_readdirplus(r.prog_data) {
-                IResult::Done(_, rdp) => {
+                };
+            }
+            NFSPROC3_READDIRPLUS => {
+                if let Ok( (_, rdp) ) = parse_nfs3_request_readdirplus(r.prog_data) {
                     xidmap.file_handle = rdp.handle.value.to_vec();
                     self.xidmap_handle2name(&mut xidmap);
-                }
-                _ => {
+                } else {
                     self.set_event(NFSEvent::MalformedData);
-                }
-            };
-        } else if r.procedure == NFSPROC3_READ {
-            match parse_nfs3_request_read(r.prog_data) {
-                IResult::Done(_, nfs3_read_record) => {
+                };
+            }
+            NFSPROC3_READ  => {
+                if let Ok( (_, nfs3_read_record) ) = parse_nfs3_request_read(r.prog_data) {
                     xidmap.chunk_offset = nfs3_read_record.offset;
                     xidmap.file_handle = nfs3_read_record.handle.value.to_vec();
                     self.xidmap_handle2name(&mut xidmap);
-                }
-                _ => {
-                    self.set_event(NFSEvent::MalformedData);
-                }
-            };
-        } else if r.procedure == NFSPROC3_WRITE {
-            match parse_nfs3_request_write(r.prog_data) {
-                IResult::Done(_, w) => {
-                    self.process_write_record(r, &w);
-                }
-                _ => {
+                } else {
                     self.set_event(NFSEvent::MalformedData);
                 }
             }
-        } else if r.procedure == NFSPROC3_CREATE {
-            match parse_nfs3_request_create(r.prog_data) {
-                IResult::Done(_, nfs3_create_record) => {
+            NFSPROC3_WRITE => {
+                if let Ok( (_, w) ) = parse_nfs3_request_write(r.prog_data) {
+                    self.process_write_record(r, &w);
+                } else {
+                    self.set_event(NFSEvent::MalformedData);
+                }
+            }
+            NFSPROC3_CREATE => {
+                if let Ok( (_, nfs3_create_record) ) = parse_nfs3_request_create(r.prog_data) {
                     xidmap.file_handle =
                         nfs3_create_record.handle.value.to_vec();
                     xidmap.file_name = nfs3_create_record.name_vec;
-                }
-                _ => {
+                } else {
                     self.set_event(NFSEvent::MalformedData);
                 }
-            };
-        } else if r.procedure == NFSPROC3_REMOVE {
-            match parse_nfs3_request_remove(r.prog_data) {
-                IResult::Done(_, rr) => {
+            }
+            NFSPROC3_REMOVE  => {
+                if let Ok( (_, rr) ) = parse_nfs3_request_remove(r.prog_data) {
                     xidmap.file_handle = rr.handle.value.to_vec();
                     xidmap.file_name = rr.name_vec;
-                }
-                _ => {
+                } else {
                     self.set_event(NFSEvent::MalformedData);
                 }
-            };
-        } else if r.procedure == NFSPROC3_RENAME {
-            match parse_nfs3_request_rename(r.prog_data) {
-                IResult::Done(_, rr) => {
+            }
+            NFSPROC3_RENAME => {
+                if let Ok( (_, rr) ) = parse_nfs3_request_rename(r.prog_data) {
                     xidmap.file_handle = rr.from_handle.value.to_vec();
                     xidmap.file_name = rr.from_name_vec;
                     aux_file_name = rr.to_name_vec;
-                }
-                _ => {
+                } else {
                     self.set_event(NFSEvent::MalformedData);
                 }
-            };
-        } else if r.procedure == NFSPROC3_MKDIR {
-            match parse_nfs3_request_mkdir(r.prog_data) {
-                IResult::Done(_, mr) => {
+            }
+            NFSPROC3_MKDIR => {
+                if let Ok( (_, mr) ) = parse_nfs3_request_mkdir(r.prog_data) {
                     xidmap.file_handle = mr.handle.value.to_vec();
                     xidmap.file_name = mr.name_vec;
-                }
-                _ => {
+                } else {
                     self.set_event(NFSEvent::MalformedData);
                 }
-            };
-        } else if r.procedure == NFSPROC3_RMDIR {
-            match parse_nfs3_request_rmdir(r.prog_data) {
-                IResult::Done(_, rr) => {
+            }
+            NFSPROC3_RMDIR => {
+                if let Ok( (_, rr) ) = parse_nfs3_request_rmdir(r.prog_data) {
                     xidmap.file_handle = rr.handle.value.to_vec();
                     xidmap.file_name = rr.name_vec;
-                }
-                _ => {
+                } else {
                     self.set_event(NFSEvent::MalformedData);
                 }
-            };
-        } else if r.procedure == NFSPROC3_COMMIT {
-            SCLogDebug!("COMMIT, closing shop");
+            }
+            NFSPROC3_COMMIT => {
+                SCLogDebug!("COMMIT, closing shop");
 
-            match parse_nfs3_request_commit(r.prog_data) {
-                IResult::Done(_, cr) => {
+                if let Ok( (_, cr) ) = parse_nfs3_request_commit(r.prog_data) {
                     let file_handle = cr.handle.value.to_vec();
-                    match self
+                    self
                         .get_file_tx_by_handle(&file_handle, STREAM_TOSERVER)
-                    {
-                        Some((tx, files, flags)) => {
+                        .iter_mut()
+                        .for_each(|t| {
+                            let (tx, files, flags) = t;
                             if let Some(NFSTransactionTypeData::FILE(
                                 ref mut tdf,
                             )) = tx.type_data
                             {
                                 tdf.chunk_count += 1;
                                 tdf.file_additional_procs.push(NFSPROC3_COMMIT);
-                                tdf.file_tracker.close(files, flags);
+                                tdf.file_tracker.close(*files, *flags);
                                 tdf.file_last_xid = r.hdr.xid;
                                 tx.is_last = true;
                                 tx.request_done = true;
                             }
-                        }
-                        None => {}
-                    }
-                }
-                _ => {
+                        });
+                } else {
                     self.set_event(NFSEvent::MalformedData);
                 }
-            };
+            }
+            _ => {
+                //procedure type we don't care about
+            }
         }
 
         if !(r.procedure == NFSPROC3_COMMIT || // commit handled separately
@@ -267,14 +246,14 @@ impl NFSState {
         let mut nfs_status = 0;
         let mut resp_handle = Vec::new();
 
-        if xidmap.procedure == NFSPROC3_LOOKUP {
-            match parse_nfs3_response_lookup(r.prog_data) {
-                IResult::Done(_, lookup) => {
+        match xidmap.procedure {
+            NFSPROC3_LOOKUP => {
+                if let Ok( (_, lookup) ) = parse_nfs3_response_lookup(r.prog_data) {
                     SCLogDebug!("LOOKUP: {:?}", lookup);
                     SCLogDebug!(
-                        "RESPONSE LOOKUP file_name {:?}",
-                        xidmap.file_name
-                    );
+                    "RESPONSE LOOKUP file_name {:?}",
+                    xidmap.file_name
+                );
 
                     nfs_status = lookup.status;
 
@@ -284,14 +263,12 @@ impl NFSState {
                         xidmap.file_name.to_vec(),
                     );
                     resp_handle = lookup.handle.value.to_vec();
-                }
-                _ => {
+                } else {
                     self.set_event(NFSEvent::MalformedData);
-                }
-            };
-        } else if xidmap.procedure == NFSPROC3_CREATE {
-            match parse_nfs3_response_create(r.prog_data) {
-                IResult::Done(_, nfs3_create_record) => {
+                };
+            }
+            NFSPROC3_CREATE => {
+                if let Ok((_, nfs3_create_record)) = parse_nfs3_response_create(r.prog_data) {
                     SCLogDebug!("nfs3_create_record: {:?}", nfs3_create_record);
 
                     SCLogDebug!(
@@ -308,24 +285,20 @@ impl NFSState {
                         );
                         resp_handle = h.value.to_vec();
                     }
-                }
-                _ => {
-                    self.set_event(NFSEvent::MalformedData);
-                }
-            };
-        } else if xidmap.procedure == NFSPROC3_READ {
-            match parse_nfs3_reply_read(r.prog_data) {
-                IResult::Done(_, ref reply) => {
-                    self.process_read_record(r, reply, Some(&xidmap));
-                    nfs_status = reply.status;
-                }
-                _ => {
+                } else {
                     self.set_event(NFSEvent::MalformedData);
                 }
             }
-        } else if xidmap.procedure == NFSPROC3_READDIRPLUS {
-            match parse_nfs3_response_readdirplus(r.prog_data) {
-                IResult::Done(_, ref reply) => {
+            NFSPROC3_READ => {
+                if let Ok( (_, ref reply) ) = parse_nfs3_reply_read(r.prog_data) {
+                    self.process_read_record(r, reply, Some(&xidmap));
+                    nfs_status = reply.status;
+                } else {
+                    self.set_event(NFSEvent::MalformedData);
+                }
+            }
+            NFSPROC3_READDIRPLUS => {
+                if let Ok( (_, ref reply) ) = parse_nfs3_response_readdirplus(r.prog_data) {
                     //SCLogDebug!("READDIRPLUS reply {:?}", reply);
 
                     nfs_status = reply.status;
@@ -334,50 +307,40 @@ impl NFSState {
                     let d = &reply.data[..reply.data.len() - 4 as usize];
 
                     // store all handle/filename mappings
-                    match many0_nfs3_response_readdirplus_entries(d) {
-                        IResult::Done(_, ref entries) => {
-                            for ce in entries {
-                                SCLogDebug!("ce {:?}", ce);
-                                match ce.entry {
-                                    Some(ref e) => {
-                                        SCLogDebug!("e {:?}", e);
-                                        match e.handle {
-                                            Some(ref h) => {
-                                                SCLogDebug!("h {:?}", h);
-                                                self.namemap.insert(
-                                                    h.value.to_vec(),
-                                                    e.name_vec.to_vec(),
-                                                );
-                                            }
-                                            _ => {}
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
+                    if let Ok( (_, ref entries) ) = many0_nfs3_response_readdirplus_entries(d) {
+                        for ce in entries {
+                            SCLogDebug!("ce {:?}", ce);
+                            ce.entry.iter().for_each(|e| {
+                                SCLogDebug!("e {:?}", e);
+                                e.handle.iter().for_each(|h| {
+                                    SCLogDebug!("h {:?}", h);
+                                    self.namemap.insert(
+                                        h.value.to_vec(),
+                                        e.name_vec.to_vec(),
+                                    );
+                                });
+                            });
+                        }
 
-                            SCLogDebug!(
-                                "READDIRPLUS ENTRIES reply {:?}",
-                                entries
-                            );
-                        }
-                        _ => {
-                            self.set_event(NFSEvent::MalformedData);
-                        }
+                        SCLogDebug!(
+                            "READDIRPLUS ENTRIES reply {:?}",
+                            entries
+                        );
+                    } else {
+                        self.set_event(NFSEvent::MalformedData);
                     }
-                }
-                _ => {
+                } else {
                     self.set_event(NFSEvent::MalformedData);
                 }
             }
-        }
-        // for all other record types only parse the status
-        else {
-            let stat = match nom::be_u32(&r.prog_data) {
-                nom::IResult::Done(_, stat) => stat as u32,
-                _ => 0 as u32,
-            };
-            nfs_status = stat;
+            _ => {
+                let stat = if let Ok( (_, s) ) = nom::be_u32(&r.prog_data) {
+                    s as u32
+                } else {
+                    0
+                };
+                nfs_status = stat;
+            }
         }
         SCLogDebug!(
             "REPLY {} to procedure {} blob size {}",

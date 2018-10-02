@@ -352,7 +352,7 @@ impl DNSState {
 
     pub fn parse_request(&mut self, input: &[u8]) -> bool {
         match parser::dns_parse_request(input) {
-            nom::IResult::Done(_, request) => {
+            Ok( (_, request) ) => {
                 if request.header.flags & 0x8000 != 0 {
                     SCLogDebug!("DNS message is not a request");
                     self.set_event(DNSEvent::NotRequest);
@@ -370,13 +370,13 @@ impl DNSState {
                 self.transactions.push(tx);
                 return true;
             }
-            nom::IResult::Incomplete(_) => {
+            Err(nom::Err::Incomplete(_)) => {
                 // Insufficient data.
                 SCLogDebug!("Insufficient data while parsing DNS request");
                 self.set_event(DNSEvent::MalformedData);
                 return false;
             }
-            nom::IResult::Error(_) => {
+            Err(_e) => {
                 // Error, probably malformed data.
                 SCLogDebug!("An error occurred while parsing DNS request");
                 self.set_event(DNSEvent::MalformedData);
@@ -387,7 +387,7 @@ impl DNSState {
 
     pub fn parse_response(&mut self, input: &[u8]) -> bool {
         match parser::dns_parse_response(input) {
-            nom::IResult::Done(_, response) => {
+            Ok( (_, response) ) => {
                 SCLogDebug!("Response header flags: {}", response.header.flags);
 
                 if response.header.flags & 0x8000 == 0 {
@@ -406,13 +406,13 @@ impl DNSState {
                 self.transactions.push(tx);
                 return true;
             }
-            nom::IResult::Incomplete(_) => {
+            Err(nom::Err::Incomplete(_)) => {
                 // Insufficient data.
                 SCLogDebug!("Insufficient data while parsing DNS response");
                 self.set_event(DNSEvent::MalformedData);
                 return false;
             }
-            nom::IResult::Error(_) => {
+            Err(_e) => {
                 // Error, probably malformed data.
                 SCLogDebug!("An error occurred while parsing DNS response");
                 self.set_event(DNSEvent::MalformedData);
@@ -441,10 +441,11 @@ impl DNSState {
 
         let mut count = 0;
         while self.request_buffer.len() > 0 {
-            let size = match nom::be_u16(&self.request_buffer) {
-                nom::IResult::Done(_, len) => len,
-                _ => 0,
-            } as usize;
+            let size = if let Ok( (_, len) ) = nom::be_u16(&self.request_buffer) {
+                len as usize
+            } else {
+                0
+            };
             SCLogDebug!(
                 "Have {} bytes, need {} to parse",
                 self.request_buffer.len(),
@@ -484,10 +485,11 @@ impl DNSState {
 
         let mut count = 0;
         while self.response_buffer.len() > 0 {
-            let size = match nom::be_u16(&self.response_buffer) {
-                nom::IResult::Done(_, len) => len,
-                _ => 0,
-            } as usize;
+            let size = if let Ok( (_, len) ) = nom::be_u16(&self.response_buffer) {
+                len as usize
+            } else {
+                0
+            };
             if size > 0 && self.response_buffer.len() >= size + 2 {
                 let msg: Vec<u8> =
                     self.response_buffer.drain(0..(size + 2)).collect();
@@ -522,21 +524,16 @@ impl DNSState {
 
 /// Probe input to see if it looks like DNS.
 fn probe(input: &[u8]) -> bool {
-    match parser::dns_parse_request(input) {
-        nom::IResult::Done(_, _) => true,
-        _ => false,
-    }
+    parser::dns_parse_request(input).is_ok()
 }
 
 /// Probe TCP input to see if it looks like DNS.
 pub fn probe_tcp(input: &[u8]) -> bool {
-    match nom::be_u16(input) {
-        nom::IResult::Done(rem, _) => {
-            return probe(rem);
-        }
-        _ => {}
+    if let Ok( (rem, _) ) = nom::be_u16(input) {
+        probe(rem)
+    } else {
+        false
     }
-    return false;
 }
 
 /// Returns *mut DNSState

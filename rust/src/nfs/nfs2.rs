@@ -19,7 +19,6 @@
 
 use crate::log::*;
 use nom;
-use nom::IResult;
 
 use crate::nfs::nfs::*;
 use crate::nfs::nfs2_records::*;
@@ -41,25 +40,19 @@ impl NFSState {
         let aux_file_name = Vec::new();
 
         if r.procedure == NFSPROC3_LOOKUP {
-            match parse_nfs2_request_lookup(r.prog_data) {
-                IResult::Done(_, ar) => {
-                    xidmap.file_handle = ar.handle.value.to_vec();
-                    self.xidmap_handle2name(&mut xidmap);
-                }
-                _ => {
-                    self.set_event(NFSEvent::MalformedData);
-                }
+            if let Ok( (_, ar) ) = parse_nfs2_request_lookup(r.prog_data) {
+                xidmap.file_handle = ar.handle.value.to_vec();
+                self.xidmap_handle2name(&mut xidmap);
+            } else {
+                self.set_event(NFSEvent::MalformedData);
             };
         } else if r.procedure == NFSPROC3_READ {
-            match parse_nfs2_request_read(r.prog_data) {
-                IResult::Done(_, read_record) => {
-                    xidmap.chunk_offset = read_record.offset as u64;
-                    xidmap.file_handle = read_record.handle.value.to_vec();
-                    self.xidmap_handle2name(&mut xidmap);
-                }
-                _ => {
-                    self.set_event(NFSEvent::MalformedData);
-                }
+            if let Ok( (_, read_record) ) = parse_nfs2_request_read(r.prog_data) {
+                xidmap.chunk_offset = read_record.offset as u64;
+                xidmap.file_handle = read_record.handle.value.to_vec();
+                self.xidmap_handle2name(&mut xidmap);
+            } else {
+                self.set_event(NFSEvent::MalformedData);
             };
         }
 
@@ -113,20 +106,18 @@ impl NFSState {
         let resp_handle = Vec::new();
 
         if xidmap.procedure == NFSPROC3_READ {
-            match parse_nfs2_reply_read(r.prog_data) {
-                IResult::Done(_, ref reply) => {
-                    SCLogDebug!("NFSv2: READ reply record");
-                    self.process_read_record(r, reply, Some(&xidmap));
-                    nfs_status = reply.status;
-                }
-                _ => {
-                    self.set_event(NFSEvent::MalformedData);
-                }
+            if let Ok( (_, ref reply) ) = parse_nfs2_reply_read(r.prog_data) {
+                SCLogDebug!("NFSv2: READ reply record");
+                self.process_read_record(r, reply, Some(&xidmap));
+                nfs_status = reply.status;
+            } else {
+                self.set_event(NFSEvent::MalformedData);
             }
         } else {
-            let stat = match nom::be_u32(&r.prog_data) {
-                nom::IResult::Done(_, stat) => stat as u32,
-                _ => 0 as u32,
+            let stat = if let Ok( (_, s) ) = nom::be_u32(&r.prog_data) {
+                s as u32
+            } else {
+                0
             };
             nfs_status = stat;
         }

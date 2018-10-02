@@ -1,3 +1,4 @@
+*.iml
 *.o
 *.lo
 *.in
@@ -8,6 +9,8 @@
 /*.yaml
 Makefile
 .deps/
+.DS_Store
+.idea
 .libs/
 *~
 m4/

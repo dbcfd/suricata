@@ -18,9 +18,6 @@
 /* TODO
  * - check all parsers for calls on non-SUCCESS status
  */
-
-use nom::IResult;
-
 use crate::core::*;
 use crate::log::*;
 
@@ -193,8 +190,8 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
     let mut no_response_expected = false;
 
     let have_tx = match r.command {
-        SMB1_COMMAND_RENAME => match parse_smb_rename_request_record(r.data) {
-            IResult::Done(_, rd) => {
+        SMB1_COMMAND_RENAME => {
+            if let Ok( (_, rd) ) = parse_smb_rename_request_record(r.data) {
                 SCLogDebug!("RENAME {:?}", rd);
 
                 let tx_hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_GENERICTX);
@@ -208,15 +205,14 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
                 tx.request_done = true;
                 tx.vercmd.set_smb1_cmd(SMB1_COMMAND_RENAME);
                 true
-            }
-            _ => {
+            } else {
                 events.push(SMBEvent::MalformedData);
                 false
             }
         },
         SMB1_COMMAND_TRANS2 => {
             match parse_smb_trans2_request_record(r.data) {
-                IResult::Done(_, rd) => {
+                Ok( (_, rd) ) => {
                     SCLogDebug!("TRANS2 DONE {:?}", rd);
 
                     if rd.subcmd == 6 {
@@ -224,7 +220,7 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
                         match parse_trans2_request_params_set_path_info(
                             rd.setup_blob,
                         ) {
-                            IResult::Done(_, pd) => {
+                            Ok( (_, pd) ) => {
                                 SCLogDebug!(
                                     "TRANS2 SET_PATH_INFO PARAMS DONE {:?}",
                                     pd
@@ -233,7 +229,7 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
                                 if pd.loi == 1013 {
                                     // set disposition info
                                     match parse_trans2_request_data_set_file_info_disposition(rd.data_blob) {
-                                        IResult::Done(_, disp) => {
+                                        Ok( (_, disp) ) => {
                                             SCLogDebug!("TRANS2 SET_FILE_INFO DATA DISPOSITION DONE {:?}", disp);
                                             let tx_hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_GENERICTX);
 
@@ -244,21 +240,21 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
                                             tx.vercmd.set_smb1_cmd(SMB1_COMMAND_TRANS2);
                                             true
 
-                                        },
-                                        IResult::Incomplete(n) => {
+                                        }
+                                        Err(nom::Err::Incomplete(n)) => {
                                             SCLogDebug!("TRANS2 SET_FILE_INFO DATA DISPOSITION INCOMPLETE {:?}", n);
                                             events.push(SMBEvent::MalformedData);
                                             false
-                                        },
-                                        IResult::Error(e) => {
-                                            SCLogDebug!("TRANS2 SET_FILE_INFO DATA DISPOSITION ERROR {:?}", e);
+                                        }
+                                        Err(_e) => {
+                                            SCLogDebug!("TRANS2 SET_FILE_INFO DATA DISPOSITION ERROR {:?}", _e);
                                             events.push(SMBEvent::MalformedData);
                                             false
-                                        },
+                                        }
                                     }
                                 } else if pd.loi == 1010 {
                                     match parse_trans2_request_data_set_path_info_rename(rd.data_blob) {
-                                        IResult::Done(_, ren) => {
+                                        Ok( (_, ren) ) => {
                                             SCLogDebug!("TRANS2 SET_PATH_INFO DATA RENAME DONE {:?}", ren);
                                             let tx_hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_GENERICTX);
                                             let mut newname = ren.newname.to_vec();
@@ -272,13 +268,13 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
                                             tx.vercmd.set_smb1_cmd(SMB1_COMMAND_TRANS2);
                                             true
                                         },
-                                        IResult::Incomplete(n) => {
+                                        Err(nom::Err::Incomplete(n)) => {
                                             SCLogDebug!("TRANS2 SET_PATH_INFO DATA RENAME INCOMPLETE {:?}", n);
                                             events.push(SMBEvent::MalformedData);
                                             false
                                         },
-                                        IResult::Error(e) => {
-                                            SCLogDebug!("TRANS2 SET_PATH_INFO DATA RENAME ERROR {:?}", e);
+                                        Err(_e) => {
+                                            SCLogDebug!("TRANS2 SET_PATH_INFO DATA RENAME ERROR {:?}", _e);
                                             events.push(SMBEvent::MalformedData);
                                             false
                                         },
@@ -287,15 +283,15 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
                                     false
                                 }
                             }
-                            IResult::Incomplete(n) => {
+                            Err(nom::Err::Incomplete(n)) => {
                                 SCLogDebug!("TRANS2 SET_PATH_INFO PARAMS INCOMPLETE {:?}", n);
                                 events.push(SMBEvent::MalformedData);
                                 false
                             }
-                            IResult::Error(e) => {
+                            Err(_e) => {
                                 SCLogDebug!(
                                     "TRANS2 SET_PATH_INFO PARAMS ERROR {:?}",
-                                    e
+                                    _e
                                 );
                                 events.push(SMBEvent::MalformedData);
                                 false
@@ -306,7 +302,7 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
                         match parse_trans2_request_params_set_file_info(
                             rd.setup_blob,
                         ) {
-                            IResult::Done(_, pd) => {
+                            Ok( (_, pd) ) => {
                                 SCLogDebug!(
                                     "TRANS2 SET_FILE_INFO PARAMS DONE {:?}",
                                     pd
@@ -315,7 +311,7 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
                                 if pd.loi == 1013 {
                                     // set disposition info
                                     match parse_trans2_request_data_set_file_info_disposition(rd.data_blob) {
-                                        IResult::Done(_, disp) => {
+                                        Ok( (_, disp) ) => {
                                             SCLogDebug!("TRANS2 SET_FILE_INFO DATA DISPOSITION DONE {:?}", disp);
                                             let tx_hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_GENERICTX);
 
@@ -334,20 +330,20 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
                                             true
 
                                         },
-                                        IResult::Incomplete(n) => {
+                                        Err(nom::Err::Incomplete(n)) => {
                                             SCLogDebug!("TRANS2 SET_FILE_INFO DATA DISPOSITION INCOMPLETE {:?}", n);
                                             events.push(SMBEvent::MalformedData);
                                             false
                                         },
-                                        IResult::Error(e) => {
-                                            SCLogDebug!("TRANS2 SET_FILE_INFO DATA DISPOSITION ERROR {:?}", e);
+                                        Err(_e) => {
+                                            SCLogDebug!("TRANS2 SET_FILE_INFO DATA DISPOSITION ERROR {:?}", _e);
                                             events.push(SMBEvent::MalformedData);
                                             false
                                         },
                                     }
                                 } else if pd.loi == 1010 {
                                     match parse_trans2_request_data_set_file_info_rename(rd.data_blob) {
-                                        IResult::Done(_, ren) => {
+                                        Ok( (_, ren) ) => {
                                             SCLogDebug!("TRANS2 SET_FILE_INFO DATA RENAME DONE {:?}", ren);
                                             let tx_hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_GENERICTX);
                                             let mut newname = ren.newname.to_vec();
@@ -366,13 +362,13 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
                                             tx.vercmd.set_smb1_cmd(SMB1_COMMAND_TRANS2);
                                             true
                                         },
-                                        IResult::Incomplete(n) => {
+                                        Err(nom::Err::Incomplete(n)) => {
                                             SCLogDebug!("TRANS2 SET_FILE_INFO DATA RENAME INCOMPLETE {:?}", n);
                                             events.push(SMBEvent::MalformedData);
                                             false
                                         },
-                                        IResult::Error(e) => {
-                                            SCLogDebug!("TRANS2 SET_FILE_INFO DATA RENAME ERROR {:?}", e);
+                                        Err(_e) => {
+                                            SCLogDebug!("TRANS2 SET_FILE_INFO DATA RENAME ERROR {:?}", _e);
                                             events.push(SMBEvent::MalformedData);
                                             false
                                         },
@@ -381,15 +377,15 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
                                     false
                                 }
                             }
-                            IResult::Incomplete(n) => {
+                            Err(nom::Err::Incomplete(n)) => {
                                 SCLogDebug!("TRANS2 SET_FILE_INFO PARAMS INCOMPLETE {:?}", n);
                                 events.push(SMBEvent::MalformedData);
                                 false
                             }
-                            IResult::Error(e) => {
+                            Err(_e) => {
                                 SCLogDebug!(
                                     "TRANS2 SET_FILE_INFO PARAMS ERROR {:?}",
-                                    e
+                                    _e
                                 );
                                 events.push(SMBEvent::MalformedData);
                                 false
@@ -399,33 +395,30 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
                         false
                     }
                 }
-                IResult::Incomplete(n) => {
+                Err(nom::Err::Incomplete(n)) => {
                     SCLogDebug!("TRANS2 INCOMPLETE {:?}", n);
                     events.push(SMBEvent::MalformedData);
                     false
                 }
-                IResult::Error(e) => {
-                    SCLogDebug!("TRANS2 ERROR {:?}", e);
+                Err(_e) => {
+                    SCLogDebug!("TRANS2 ERROR {:?}", _e);
                     events.push(SMBEvent::MalformedData);
                     false
                 }
             }
         }
         SMB1_COMMAND_READ_ANDX => {
-            match parse_smb_read_andx_request_record(r.data) {
-                IResult::Done(_, rr) => {
-                    SCLogDebug!("rr {:?}", rr);
+            if let Ok( (_, rr) ) = parse_smb_read_andx_request_record(r.data) {
+                SCLogDebug!("rr {:?}", rr);
 
-                    // store read fid,offset in map
-                    let fid_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_OFFSET);
-                    let mut fid = rr.fid.to_vec();
-                    fid.extend_from_slice(&u32_as_bytes(r.ssn_id));
-                    let fidoff = SMBFileGUIDOffset::new(fid, rr.offset);
-                    state.ssn2vecoffset_map.insert(fid_key, fidoff);
-                }
-                _ => {
-                    events.push(SMBEvent::MalformedData);
-                }
+                // store read fid,offset in map
+                let fid_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_OFFSET);
+                let mut fid = rr.fid.to_vec();
+                fid.extend_from_slice(&u32_as_bytes(r.ssn_id));
+                let fidoff = SMBFileGUIDOffset::new(fid, rr.offset);
+                state.ssn2vecoffset_map.insert(fid_key, fidoff);
+            } else {
+                events.push(SMBEvent::MalformedData);
             }
             false
         }
@@ -440,86 +433,80 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
             true
         }
         SMB1_COMMAND_NEGOTIATE_PROTOCOL => {
-            match parse_smb1_negotiate_protocol_record(r.data) {
-                IResult::Done(_, pr) => {
-                    SCLogDebug!("SMB_COMMAND_NEGOTIATE_PROTOCOL {:?}", pr);
+            if let Ok( (_, pr) ) = parse_smb1_negotiate_protocol_record(r.data) {
+                SCLogDebug!("SMB_COMMAND_NEGOTIATE_PROTOCOL {:?}", pr);
 
-                    let mut bad_dialects = false;
-                    let mut dialects: Vec<Vec<u8>> = Vec::new();
-                    for d in &pr.dialects {
-                        if d.len() == 0 {
-                            bad_dialects = true;
-                            continue;
-                        } else if d.len() == 1 {
-                            bad_dialects = true;
-                        }
-                        let x = &d[1..d.len()];
-                        let dvec = x.to_vec();
-                        dialects.push(dvec);
+                let mut bad_dialects = false;
+                let mut dialects: Vec<Vec<u8>> = Vec::new();
+                for d in &pr.dialects {
+                    if d.len() == 0 {
+                        bad_dialects = true;
+                        continue;
+                    } else if d.len() == 1 {
+                        bad_dialects = true;
                     }
+                    let x = &d[1..d.len()];
+                    let dvec = x.to_vec();
+                    dialects.push(dvec);
+                }
 
-                    let found = match state.get_negotiate_tx(1) {
-                        Some(tx) => {
-                            SCLogDebug!("WEIRD, should not have NEGOTIATE tx!");
-                            tx.set_event(SMBEvent::DuplicateNegotiate);
-                            true
-                        }
-                        None => false,
-                    };
-                    if !found {
-                        let tx = state.new_negotiate_tx(1);
-                        if let Some(SMBTransactionTypeData::NEGOTIATE(
-                            ref mut tdn,
-                        )) = tx.type_data
-                        {
-                            tdn.dialects = dialects;
-                        }
-                        tx.request_done = true;
-                        if bad_dialects {
-                            tx.set_event(SMBEvent::NegotiateMalformedDialects);
-                        }
+                let found = match state.get_negotiate_tx(1) {
+                    Some(tx) => {
+                        SCLogDebug!("WEIRD, should not have NEGOTIATE tx!");
+                        tx.set_event(SMBEvent::DuplicateNegotiate);
+                        true
                     }
-                    true
+                    None => false,
+                };
+                if !found {
+                    let tx = state.new_negotiate_tx(1);
+                    if let Some(SMBTransactionTypeData::NEGOTIATE(
+                        ref mut tdn,
+                    )) = tx.type_data
+                    {
+                        tdn.dialects = dialects;
+                    }
+                    tx.request_done = true;
+                    if bad_dialects {
+                        tx.set_event(SMBEvent::NegotiateMalformedDialects);
+                    }
                 }
-                _ => {
-                    events.push(SMBEvent::MalformedData);
-                    false
-                }
+                true
+            } else {
+                events.push(SMBEvent::MalformedData);
+                false
             }
         }
         SMB1_COMMAND_NT_CREATE_ANDX => {
-            match parse_smb_create_andx_request_record(r.data) {
-                IResult::Done(_, cr) => {
-                    SCLogDebug!("Create AndX {:?}", cr);
-                    let del = cr.create_options & 0x0000_1000 != 0;
-                    let dir = cr.create_options & 0x0000_0001 != 0;
-                    SCLogDebug!(
-                        "del {} dir {} options {:08x}",
-                        del,
-                        dir,
-                        cr.create_options
-                    );
+            if let Ok( (_, cr) ) = parse_smb_create_andx_request_record(r.data) {
+                SCLogDebug!("Create AndX {:?}", cr);
+                let del = cr.create_options & 0x0000_1000 != 0;
+                let dir = cr.create_options & 0x0000_0001 != 0;
+                SCLogDebug!(
+                    "del {} dir {} options {:08x}",
+                    del,
+                    dir,
+                    cr.create_options
+                );
 
-                    let name_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_FILENAME);
-                    let name_val = cr.file_name.to_vec();
-                    state.ssn2vec_map.insert(name_key, name_val);
+                let name_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_FILENAME);
+                let name_val = cr.file_name.to_vec();
+                state.ssn2vec_map.insert(name_key, name_val);
 
-                    let tx_hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_GENERICTX);
-                    let tx = state.new_create_tx(
-                        &cr.file_name.to_vec(),
-                        cr.disposition,
-                        del,
-                        dir,
-                        tx_hdr,
-                    );
-                    tx.vercmd.set_smb1_cmd(r.command);
-                    SCLogDebug!("TS CREATE TX {} created", tx.id);
-                    true
-                }
-                _ => {
-                    events.push(SMBEvent::MalformedData);
-                    false
-                }
+                let tx_hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_GENERICTX);
+                let tx = state.new_create_tx(
+                    &cr.file_name.to_vec(),
+                    cr.disposition,
+                    del,
+                    dir,
+                    tx_hdr,
+                );
+                tx.vercmd.set_smb1_cmd(r.command);
+                SCLogDebug!("TS CREATE TX {} created", tx.id);
+                true
+            } else {
+                events.push(SMBEvent::MalformedData);
+                false
             }
         }
         SMB1_COMMAND_SESSION_SETUP_ANDX => {
@@ -532,31 +519,28 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
         }
         SMB1_COMMAND_TREE_CONNECT_ANDX => {
             SCLogDebug!("SMB1_COMMAND_TREE_CONNECT_ANDX");
-            match parse_smb_connect_tree_andx_record(r.data, r) {
-                IResult::Done(_, tr) => {
-                    let name_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_TREE);
-                    let mut name_val = tr.path;
-                    if name_val.len() > 1 {
-                        name_val = name_val[1..].to_vec();
-                    }
+            if let Ok( (_, tr) ) = parse_smb_connect_tree_andx_record(r.data, r) {
+                let name_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_TREE);
+                let mut name_val = tr.path;
+                if name_val.len() > 1 {
+                    name_val = name_val[1..].to_vec();
+                }
 
-                    // store hdr as SMBHDR_TYPE_TREE, so with tree id 0
-                    // when the response finds this we update it
-                    let tx = state.new_treeconnect_tx(name_key, name_val);
-                    if let Some(SMBTransactionTypeData::TREECONNECT(
-                        ref mut tdn,
-                    )) = tx.type_data
-                    {
-                        tdn.req_service = Some(tr.service.to_vec());
-                    }
-                    tx.request_done = true;
-                    tx.vercmd.set_smb1_cmd(SMB1_COMMAND_TREE_CONNECT_ANDX);
-                    true
+                // store hdr as SMBHDR_TYPE_TREE, so with tree id 0
+                // when the response finds this we update it
+                let tx = state.new_treeconnect_tx(name_key, name_val);
+                if let Some(SMBTransactionTypeData::TREECONNECT(
+                    ref mut tdn,
+                )) = tx.type_data
+                {
+                    tdn.req_service = Some(tr.service.to_vec());
                 }
-                _ => {
-                    events.push(SMBEvent::MalformedData);
-                    false
-                }
+                tx.request_done = true;
+                tx.vercmd.set_smb1_cmd(SMB1_COMMAND_TREE_CONNECT_ANDX);
+                true
+            } else {
+                events.push(SMBEvent::MalformedData);
+                false
             }
         }
         SMB1_COMMAND_TREE_DISCONNECT => {
@@ -565,16 +549,13 @@ pub fn smb1_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) -> u32 {
             false
         }
         SMB1_COMMAND_CLOSE => {
-            match parse_smb1_close_request_record(r.data) {
-                IResult::Done(_, cd) => {
-                    let mut fid = cd.fid.to_vec();
-                    fid.extend_from_slice(&u32_as_bytes(r.ssn_id));
-                    SCLogDebug!("closing FID {:?}/{:?}", cd.fid, fid);
-                    smb1_close_file(state, &fid);
-                }
-                _ => {
-                    events.push(SMBEvent::MalformedData);
-                }
+            if let Ok( (_, cd) ) = parse_smb1_close_request_record(r.data) {
+                let mut fid = cd.fid.to_vec();
+                fid.extend_from_slice(&u32_as_bytes(r.ssn_id));
+                SCLogDebug!("closing FID {:?}/{:?}", cd.fid, fid);
+                smb1_close_file(state, &fid);
+            } else {
+                events.push(SMBEvent::MalformedData);
             }
             false
         }
@@ -647,49 +628,46 @@ pub fn smb1_response_record<'b>(
         }
         SMB1_COMMAND_NEGOTIATE_PROTOCOL => {
             SCLogDebug!("SMB1_COMMAND_NEGOTIATE_PROTOCOL response");
-            match parse_smb1_negotiate_protocol_response_record(r.data) {
-                IResult::Done(_, pr) => {
-                    let (have_ntx, dialect) = match state.get_negotiate_tx(1) {
-                        Some(tx) => {
-                            tx.set_status(r.nt_status, r.is_dos_error);
-                            tx.response_done = true;
-                            SCLogDebug!("tx {} is done", tx.id);
-                            let d = match tx.type_data {
-                                Some(SMBTransactionTypeData::NEGOTIATE(
-                                    ref mut x,
-                                )) => {
-                                    x.server_guid = pr.server_guid.to_vec();
+            if let Ok( (_, pr) ) = parse_smb1_negotiate_protocol_response_record(r.data) {
+                let (have_ntx, dialect) = match state.get_negotiate_tx(1) {
+                    Some(tx) => {
+                        tx.set_status(r.nt_status, r.is_dos_error);
+                        tx.response_done = true;
+                        SCLogDebug!("tx {} is done", tx.id);
+                        let d = match tx.type_data {
+                            Some(SMBTransactionTypeData::NEGOTIATE(
+                                ref mut x,
+                            )) => {
+                                x.server_guid = pr.server_guid.to_vec();
 
-                                    let dialect_idx = pr.dialect_idx as usize;
-                                    if x.dialects.len() <= dialect_idx {
-                                        None
-                                    } else {
-                                        let d =
-                                            x.dialects[dialect_idx].to_vec();
-                                        Some(d)
-                                    }
+                                let dialect_idx = pr.dialect_idx as usize;
+                                if x.dialects.len() <= dialect_idx {
+                                    None
+                                } else {
+                                    let d =
+                                        x.dialects[dialect_idx].to_vec();
+                                    Some(d)
                                 }
-                                _ => None,
-                            };
-                            if d == None {
-                                tx.set_event(
-                                    SMBEvent::NegotiateMalformedDialects,
-                                );
                             }
-                            (true, d)
+                            _ => None,
+                        };
+                        if d == None {
+                            tx.set_event(
+                                SMBEvent::NegotiateMalformedDialects,
+                            );
                         }
-                        None => (false, None),
-                    };
-                    if let Some(d) = dialect {
-                        SCLogDebug!("dialect {:?}", d);
-                        state.dialect_vec = Some(d);
+                        (true, d)
                     }
-                    have_ntx
+                    None => (false, None),
+                };
+                if let Some(d) = dialect {
+                    SCLogDebug!("dialect {:?}", d);
+                    state.dialect_vec = Some(d);
                 }
-                _ => {
-                    events.push(SMBEvent::MalformedData);
-                    false
-                }
+                have_ntx
+            } else {
+                events.push(SMBEvent::MalformedData);
+                false
             }
         }
         SMB1_COMMAND_TREE_CONNECT_ANDX => {
@@ -712,42 +690,39 @@ pub fn smb1_response_record<'b>(
                 return 0;
             }
 
-            match parse_smb_connect_tree_andx_response_record(r.data) {
-                IResult::Done(_, tr) => {
-                    let name_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_TREE);
-                    let is_pipe = tr.service == "IPC".as_bytes();
-                    let mut share_name = Vec::new();
-                    let found = match state.get_treeconnect_tx(name_key) {
-                        Some(tx) => {
-                            if let Some(SMBTransactionTypeData::TREECONNECT(
-                                ref mut tdn,
-                            )) = tx.type_data
-                            {
-                                tdn.is_pipe = is_pipe;
-                                tdn.tree_id = r.tree_id as u32;
-                                share_name = tdn.share_name.to_vec();
-                                tdn.res_service = Some(tr.service.to_vec());
-                            }
-                            tx.hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_HEADER);
-                            tx.set_status(r.nt_status, r.is_dos_error);
-                            tx.response_done = true;
-                            SCLogDebug!("tx {} is done", tx.id);
-                            true
+            if let Ok( (_, tr) ) = parse_smb_connect_tree_andx_response_record(r.data) {
+                let name_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_TREE);
+                let is_pipe = tr.service == "IPC".as_bytes();
+                let mut share_name = Vec::new();
+                let found = match state.get_treeconnect_tx(name_key) {
+                    Some(tx) => {
+                        if let Some(SMBTransactionTypeData::TREECONNECT(
+                            ref mut tdn,
+                        )) = tx.type_data
+                        {
+                            tdn.is_pipe = is_pipe;
+                            tdn.tree_id = r.tree_id as u32;
+                            share_name = tdn.share_name.to_vec();
+                            tdn.res_service = Some(tr.service.to_vec());
                         }
-                        None => false,
-                    };
-                    if found {
-                        let tree = SMBTree::new(share_name.to_vec(), is_pipe);
-                        let tree_key =
-                            SMBCommonHdr::from1(r, SMBHDR_TYPE_SHARE);
-                        state.ssn2tree_map.insert(tree_key, tree);
+                        tx.hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_HEADER);
+                        tx.set_status(r.nt_status, r.is_dos_error);
+                        tx.response_done = true;
+                        SCLogDebug!("tx {} is done", tx.id);
+                        true
                     }
-                    found
+                    None => false,
+                };
+                if found {
+                    let tree = SMBTree::new(share_name.to_vec(), is_pipe);
+                    let tree_key =
+                        SMBCommonHdr::from1(r, SMBHDR_TYPE_SHARE);
+                    state.ssn2tree_map.insert(tree_key, tree);
                 }
-                _ => {
-                    events.push(SMBEvent::MalformedData);
-                    false
-                }
+                found
+            } else {
+                events.push(SMBEvent::MalformedData);
+                false
             }
         }
         SMB1_COMMAND_TREE_DISCONNECT => {
@@ -763,64 +738,61 @@ pub fn smb1_response_record<'b>(
                 r.nt_status
             );
             if r.nt_status == SMB_NTSTATUS_SUCCESS {
-                match parse_smb_create_andx_response_record(r.data) {
-                    IResult::Done(_, cr) => {
-                        SCLogDebug!("Create AndX {:?}", cr);
+                if let Ok( (_, cr) ) = parse_smb_create_andx_response_record(r.data) {
+                    SCLogDebug!("Create AndX {:?}", cr);
 
-                        let guid_key =
-                            SMBCommonHdr::from1(r, SMBHDR_TYPE_FILENAME);
-                        match state.ssn2vec_map.remove(&guid_key) {
-                            Some(mut p) => {
-                                p.retain(|&i| i != 0x00);
+                    let guid_key =
+                        SMBCommonHdr::from1(r, SMBHDR_TYPE_FILENAME);
+                    match state.ssn2vec_map.remove(&guid_key) {
+                        Some(mut p) => {
+                            p.retain(|&i| i != 0x00);
 
-                                let mut fid = cr.fid.to_vec();
-                                fid.extend_from_slice(&u32_as_bytes(r.ssn_id));
-                                SCLogDebug!(
-                                    "SMB1_COMMAND_NT_CREATE_ANDX fid {:?}",
-                                    fid
-                                );
-                                SCLogDebug!("fid {:?} name {:?}", fid, p);
-                                state.guid2name_map.insert(fid, p);
-                            }
-                            _ => {
-                                SCLogDebug!("SMBv1 response: GUID NOT FOUND");
-                            }
-                        }
-
-                        let tx_hdr =
-                            SMBCommonHdr::from1(r, SMBHDR_TYPE_GENERICTX);
-                        if let Some(tx) =
-                            state.get_generic_tx(1, r.command as u16, &tx_hdr)
-                        {
+                            let mut fid = cr.fid.to_vec();
+                            fid.extend_from_slice(&u32_as_bytes(r.ssn_id));
                             SCLogDebug!(
-                                "tx {} with {}/{} marked as done",
-                                tx.id,
-                                r.command,
-                                &smb1_command_string(r.command)
+                                "SMB1_COMMAND_NT_CREATE_ANDX fid {:?}",
+                                fid
                             );
-                            tx.set_status(r.nt_status, false);
-                            tx.response_done = true;
-
-                            if let Some(SMBTransactionTypeData::CREATE(
-                                ref mut tdn,
-                            )) = tx.type_data
-                            {
-                                tdn.create_ts = cr.create_ts.as_unix();
-                                tdn.last_access_ts =
-                                    cr.last_access_ts.as_unix();
-                                tdn.last_write_ts = cr.last_write_ts.as_unix();
-                                tdn.last_change_ts =
-                                    cr.last_change_ts.as_unix();
-                                tdn.size = cr.file_size;
-                                tdn.guid = cr.fid.to_vec();
-                            }
+                            SCLogDebug!("fid {:?} name {:?}", fid, p);
+                            state.guid2name_map.insert(fid, p);
                         }
-                        true
+                        _ => {
+                            SCLogDebug!("SMBv1 response: GUID NOT FOUND");
+                        }
                     }
-                    _ => {
-                        events.push(SMBEvent::MalformedData);
-                        false
+
+                    let tx_hdr =
+                        SMBCommonHdr::from1(r, SMBHDR_TYPE_GENERICTX);
+                    if let Some(tx) =
+                        state.get_generic_tx(1, r.command as u16, &tx_hdr)
+                    {
+                        SCLogDebug!(
+                            "tx {} with {}/{} marked as done",
+                            tx.id,
+                            r.command,
+                            &smb1_command_string(r.command)
+                        );
+                        tx.set_status(r.nt_status, false);
+                        tx.response_done = true;
+
+                        if let Some(SMBTransactionTypeData::CREATE(
+                            ref mut tdn,
+                        )) = tx.type_data
+                        {
+                            tdn.create_ts = cr.create_ts.as_unix();
+                            tdn.last_access_ts =
+                                cr.last_access_ts.as_unix();
+                            tdn.last_write_ts = cr.last_write_ts.as_unix();
+                            tdn.last_change_ts =
+                                cr.last_change_ts.as_unix();
+                            tdn.size = cr.file_size;
+                            tdn.guid = cr.fid.to_vec();
+                        }
                     }
+                    true
+                } else {
+                    events.push(SMBEvent::MalformedData);
+                    false
                 }
             } else {
                 false
@@ -887,66 +859,19 @@ pub fn smb1_response_record<'b>(
 pub fn smb1_trans_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) {
     let mut events: Vec<SMBEvent> = Vec::new();
 
-    match parse_smb_trans_request_record(r.data, r) {
-        IResult::Done(_, rd) => {
-            SCLogDebug!("TRANS request {:?}", rd);
+    if let Ok( (_, rd) ) = parse_smb_trans_request_record(r.data, r) {
+        SCLogDebug!("TRANS request {:?}", rd);
 
-            /* if we have a fid, store it so the response can pick it up */
-            let mut pipe_dcerpc = false;
-            if rd.pipe != None {
-                let pipe = rd.pipe.unwrap();
-                state.ssn2vec_map.insert(
-                    SMBCommonHdr::from1(r, SMBHDR_TYPE_GUID),
-                    pipe.fid.to_vec(),
-                );
+        /* if we have a fid, store it so the response can pick it up */
+        let mut pipe_dcerpc = false;
+        if rd.pipe != None {
+            let pipe = rd.pipe.unwrap();
+            state.ssn2vec_map.insert(
+                SMBCommonHdr::from1(r, SMBHDR_TYPE_GUID),
+                pipe.fid.to_vec(),
+            );
 
-                let mut frankenfid = pipe.fid.to_vec();
-                frankenfid.extend_from_slice(&u32_as_bytes(r.ssn_id));
-
-                let (filename, is_dcerpc) =
-                    match state.get_service_for_guid(&frankenfid) {
-                        (n, x) => (n, x),
-                    };
-                SCLogDebug!(
-                    "smb1_trans_request_record: name {} is_dcerpc {}",
-                    filename,
-                    is_dcerpc
-                );
-                pipe_dcerpc = is_dcerpc;
-            }
-
-            if pipe_dcerpc {
-                SCLogDebug!("SMBv1 TRANS TO PIPE");
-                let hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_HEADER);
-                let vercmd = SMBVerCmdStat::new1(r.command);
-                smb_write_dcerpc_record(state, vercmd, hdr, &rd.data.data);
-            }
-        }
-        _ => {
-            events.push(SMBEvent::MalformedData);
-        }
-    }
-    smb1_request_record_generic(state, r, events);
-}
-
-pub fn smb1_trans_response_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) {
-    let mut events: Vec<SMBEvent> = Vec::new();
-
-    match parse_smb_trans_response_record(r.data) {
-        IResult::Done(_, rd) => {
-            SCLogDebug!("TRANS response {:?}", rd);
-
-            // see if we have a stored fid
-            let fid = match state
-                .ssn2vec_map
-                .remove(&SMBCommonHdr::from1(r, SMBHDR_TYPE_GUID))
-            {
-                Some(f) => f,
-                None => Vec::new(),
-            };
-            SCLogDebug!("FID {:?}", fid);
-
-            let mut frankenfid = fid.to_vec();
+            let mut frankenfid = pipe.fid.to_vec();
             frankenfid.extend_from_slice(&u32_as_bytes(r.ssn_id));
 
             let (filename, is_dcerpc) =
@@ -954,28 +879,69 @@ pub fn smb1_trans_response_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) {
                     (n, x) => (n, x),
                 };
             SCLogDebug!(
-                "smb1_trans_response_record: name {} is_dcerpc {}",
+                "smb1_trans_request_record: name {} is_dcerpc {}",
                 filename,
                 is_dcerpc
             );
+            pipe_dcerpc = is_dcerpc;
+        }
 
-            // if we get status 'BUFFER_OVERFLOW' this is only a part of
-            // the data. Store it in the ssn/tree for later use.
-            if r.nt_status == SMB_NTSTATUS_BUFFER_OVERFLOW {
-                let key = SMBHashKeyHdrGuid::new(SMBCommonHdr::from1(r, SMBHDR_TYPE_TRANS_FRAG), fid);
-                SCLogDebug!("SMBv1/TRANS: queueing data for len {} key {:?}", rd.data.len(), key);
-                state.ssnguid2vec_map.insert(key, rd.data.to_vec());
-            } else if is_dcerpc {
-                SCLogDebug!("SMBv1 TRANS TO PIPE");
-                let hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_HEADER);
-                let vercmd =
-                    SMBVerCmdStat::new1_with_ntstatus(r.command, r.nt_status);
-                smb_read_dcerpc_record(state, vercmd, hdr, &fid, &rd.data);
-            }
+        if pipe_dcerpc {
+            SCLogDebug!("SMBv1 TRANS TO PIPE");
+            let hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_HEADER);
+            let vercmd = SMBVerCmdStat::new1(r.command);
+            smb_write_dcerpc_record(state, vercmd, hdr, &rd.data.data);
         }
-        _ => {
-            events.push(SMBEvent::MalformedData);
+    } else {
+        events.push(SMBEvent::MalformedData);
+    }
+    smb1_request_record_generic(state, r, events);
+}
+
+pub fn smb1_trans_response_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) {
+    let mut events: Vec<SMBEvent> = Vec::new();
+
+    if let Ok( (_, rd) ) = parse_smb_trans_response_record(r.data) {
+        SCLogDebug!("TRANS response {:?}", rd);
+
+        // see if we have a stored fid
+        let fid = match state
+            .ssn2vec_map
+            .remove(&SMBCommonHdr::from1(r, SMBHDR_TYPE_GUID))
+        {
+            Some(f) => f,
+            None => Vec::new(),
+        };
+        SCLogDebug!("FID {:?}", fid);
+
+        let mut frankenfid = fid.to_vec();
+        frankenfid.extend_from_slice(&u32_as_bytes(r.ssn_id));
+
+        let (filename, is_dcerpc) =
+            match state.get_service_for_guid(&frankenfid) {
+                (n, x) => (n, x),
+            };
+        SCLogDebug!(
+            "smb1_trans_response_record: name {} is_dcerpc {}",
+            filename,
+            is_dcerpc
+        );
+
+        // if we get status 'BUFFER_OVERFLOW' this is only a part of
+        // the data. Store it in the ssn/tree for later use.
+        if r.nt_status == SMB_NTSTATUS_BUFFER_OVERFLOW {
+            let key = SMBHashKeyHdrGuid::new(SMBCommonHdr::from1(r, SMBHDR_TYPE_TRANS_FRAG), fid);
+            SCLogDebug!("SMBv1/TRANS: queueing data for len {} key {:?}", rd.data.len(), key);
+            state.ssnguid2vec_map.insert(key, rd.data.to_vec());
+        } else if is_dcerpc {
+            SCLogDebug!("SMBv1 TRANS TO PIPE");
+            let hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_HEADER);
+            let vercmd =
+                SMBVerCmdStat::new1_with_ntstatus(r.command, r.nt_status);
+            smb_read_dcerpc_record(state, vercmd, hdr, &fid, &rd.data);
         }
+    } else {
+        events.push(SMBEvent::MalformedData);
     }
 
     // generic tx as well. Set events if needed.
@@ -993,103 +959,100 @@ pub fn smb1_write_request_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) {
     } else {
         parse_smb1_write_and_close_request_record(r.data)
     };
-    match result {
-        IResult::Done(_, rd) => {
-            SCLogDebug!("SMBv1: write andx => {:?}", rd);
+    if let Ok( (_, rd) ) = result {
+        SCLogDebug!("SMBv1: write andx => {:?}", rd);
 
-            let mut file_fid = rd.fid.to_vec();
-            file_fid.extend_from_slice(&u32_as_bytes(r.ssn_id));
-            SCLogDebug!("SMBv1 WRITE: FID {:?} offset {}", file_fid, rd.offset);
+        let mut file_fid = rd.fid.to_vec();
+        file_fid.extend_from_slice(&u32_as_bytes(r.ssn_id));
+        SCLogDebug!("SMBv1 WRITE: FID {:?} offset {}", file_fid, rd.offset);
 
-            let file_name = match state.guid2name_map.get(&file_fid) {
-                Some(n) => n.to_vec(),
-                None => b"<unknown>".to_vec(),
-            };
-            let found = match state
-                .get_file_tx_by_fuid(&file_fid, STREAM_TOSERVER)
-            {
-                Some((tx, files, flags)) => {
-                    let file_id: u32 = tx.id as u32;
-                    if let Some(SMBTransactionTypeData::FILE(ref mut tdf)) =
-                        tx.type_data
-                    {
-                        filetracker_newchunk(
-                            &mut tdf.file_tracker,
-                            files,
-                            flags,
-                            &file_name,
-                            rd.data,
-                            rd.offset,
-                            rd.len,
-                            0,
-                            false,
-                            &file_id,
-                        );
-                        SCLogDebug!("FID {:?} found at tx {}", file_fid, tx.id);
-                    }
-                    true
-                }
-                None => false,
-            };
-            if !found {
-                let tree_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_SHARE);
-                let (share_name, is_pipe) =
-                    match state.ssn2tree_map.get(&tree_key) {
-                        Some(n) => (n.name.to_vec(), n.is_pipe),
-                        None => (Vec::new(), false),
-                    };
-                if is_pipe {
-                    SCLogDebug!("SMBv1 WRITE TO PIPE");
-                    let hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_HEADER);
-                    let vercmd = SMBVerCmdStat::new1_with_ntstatus(
-                        r.command,
-                        r.nt_status,
-                    );
-                    smb_write_dcerpc_record(state, vercmd, hdr, &rd.data);
-                } else {
-                    let (tx, files, flags) = state.new_file_tx(
-                        &file_fid,
+        let file_name = match state.guid2name_map.get(&file_fid) {
+            Some(n) => n.to_vec(),
+            None => b"<unknown>".to_vec(),
+        };
+        let found = match state
+            .get_file_tx_by_fuid(&file_fid, STREAM_TOSERVER)
+        {
+            Some((tx, files, flags)) => {
+                let file_id: u32 = tx.id as u32;
+                if let Some(SMBTransactionTypeData::FILE(ref mut tdf)) =
+                    tx.type_data
+                {
+                    filetracker_newchunk(
+                        &mut tdf.file_tracker,
+                        files,
+                        flags,
                         &file_name,
-                        STREAM_TOSERVER,
+                        rd.data,
+                        rd.offset,
+                        rd.len,
+                        0,
+                        false,
+                        &file_id,
                     );
-                    if let Some(SMBTransactionTypeData::FILE(ref mut tdf)) =
-                        tx.type_data
-                    {
-                        let file_id: u32 = tx.id as u32;
-                        SCLogDebug!("FID {:?} found at tx {}", file_fid, tx.id);
-                        filetracker_newchunk(
-                            &mut tdf.file_tracker,
-                            files,
-                            flags,
-                            &file_name,
-                            rd.data,
-                            rd.offset,
-                            rd.len,
-                            0,
-                            false,
-                            &file_id,
-                        );
-                        tdf.share_name = share_name;
-                    }
-                    tx.vercmd.set_smb1_cmd(SMB1_COMMAND_WRITE_ANDX);
+                    SCLogDebug!("FID {:?} found at tx {}", file_fid, tx.id);
                 }
+                true
             }
-
-            state.set_file_left(
-                STREAM_TOSERVER,
-                rd.len,
-                rd.data.len() as u32,
-                file_fid.to_vec(),
-            );
-
-            if r.command == SMB1_COMMAND_WRITE_AND_CLOSE {
-                SCLogDebug!("closing FID {:?}", file_fid);
-                smb1_close_file(state, &file_fid);
+            None => false,
+        };
+        if !found {
+            let tree_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_SHARE);
+            let (share_name, is_pipe) =
+                match state.ssn2tree_map.get(&tree_key) {
+                    Some(n) => (n.name.to_vec(), n.is_pipe),
+                    None => (Vec::new(), false),
+                };
+            if is_pipe {
+                SCLogDebug!("SMBv1 WRITE TO PIPE");
+                let hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_HEADER);
+                let vercmd = SMBVerCmdStat::new1_with_ntstatus(
+                    r.command,
+                    r.nt_status,
+                );
+                smb_write_dcerpc_record(state, vercmd, hdr, &rd.data);
+            } else {
+                let (tx, files, flags) = state.new_file_tx(
+                    &file_fid,
+                    &file_name,
+                    STREAM_TOSERVER,
+                );
+                if let Some(SMBTransactionTypeData::FILE(ref mut tdf)) =
+                    tx.type_data
+                {
+                    let file_id: u32 = tx.id as u32;
+                    SCLogDebug!("FID {:?} found at tx {}", file_fid, tx.id);
+                    filetracker_newchunk(
+                        &mut tdf.file_tracker,
+                        files,
+                        flags,
+                        &file_name,
+                        rd.data,
+                        rd.offset,
+                        rd.len,
+                        0,
+                        false,
+                        &file_id,
+                    );
+                    tdf.share_name = share_name;
+                }
+                tx.vercmd.set_smb1_cmd(SMB1_COMMAND_WRITE_ANDX);
             }
         }
-        _ => {
-            events.push(SMBEvent::MalformedData);
+
+        state.set_file_left(
+            STREAM_TOSERVER,
+            rd.len,
+            rd.data.len() as u32,
+            file_fid.to_vec(),
+        );
+
+        if r.command == SMB1_COMMAND_WRITE_AND_CLOSE {
+            SCLogDebug!("closing FID {:?}", file_fid);
+            smb1_close_file(state, &file_fid);
         }
+    } else {
+        events.push(SMBEvent::MalformedData);
     }
     smb1_request_record_generic(state, r, events);
 }
@@ -1098,81 +1061,48 @@ pub fn smb1_read_response_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) {
     let mut events: Vec<SMBEvent> = Vec::new();
 
     if r.nt_status == SMB_NTSTATUS_SUCCESS {
-        match parse_smb_read_andx_response_record(r.data) {
-            IResult::Done(_, rd) => {
-                SCLogDebug!("SMBv1: read response => {:?}", rd);
+        if let Ok( (_, rd) ) = parse_smb_read_andx_response_record(r.data) {
+            SCLogDebug!("SMBv1: read response => {:?}", rd);
 
-                let fid_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_OFFSET);
-                let (offset, file_fid) = match state
-                    .ssn2vecoffset_map
-                    .remove(&fid_key)
-                {
-                    Some(o) => (o.offset, o.guid),
-                    None => {
-                        SCLogDebug!("SMBv1 READ response: reply to unknown request: left {} {:?}",
-                                rd.len - rd.data.len() as u32, rd);
-                        state.set_skip(
-                            STREAM_TOCLIENT,
-                            rd.len,
-                            rd.data.len() as u32,
-                        );
-                        return;
-                    }
+            let fid_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_OFFSET);
+            let (offset, file_fid) = match state
+                .ssn2vecoffset_map
+                .remove(&fid_key)
+            {
+                Some(o) => (o.offset, o.guid),
+                None => {
+                    SCLogDebug!("SMBv1 READ response: reply to unknown request: left {} {:?}",
+                            rd.len - rd.data.len() as u32, rd);
+                    state.set_skip(
+                        STREAM_TOCLIENT,
+                        rd.len,
+                        rd.data.len() as u32,
+                    );
+                    return;
+                }
+            };
+            SCLogDebug!("SMBv1 READ: FID {:?} offset {}", file_fid, offset);
+
+            let tree_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_SHARE);
+            let (is_pipe, share_name) =
+                match state.ssn2tree_map.get(&tree_key) {
+                    Some(n) => (n.is_pipe, n.name.to_vec()),
+                    _ => (false, Vec::new()),
                 };
-                SCLogDebug!("SMBv1 READ: FID {:?} offset {}", file_fid, offset);
-
-                let tree_key = SMBCommonHdr::from1(r, SMBHDR_TYPE_SHARE);
-                let (is_pipe, share_name) =
-                    match state.ssn2tree_map.get(&tree_key) {
-                        Some(n) => (n.is_pipe, n.name.to_vec()),
-                        _ => (false, Vec::new()),
-                    };
-                if !is_pipe {
-                    let file_name = match state.guid2name_map.get(&file_fid) {
-                        Some(n) => n.to_vec(),
-                        None => Vec::new(),
-                    };
-                    let found = match state
-                        .get_file_tx_by_fuid(&file_fid, STREAM_TOCLIENT)
-                    {
-                        Some((tx, files, flags)) => {
-                            if let Some(SMBTransactionTypeData::FILE(
-                                ref mut tdf,
-                            )) = tx.type_data
-                            {
-                                let file_id : u32 = tx.id as u32;
-                                SCLogDebug!(
-                                    "FID {:?} found at tx {}",
-                                    file_fid,
-                                    tx.id
-                                );
-                                filetracker_newchunk(
-                                    &mut tdf.file_tracker,
-                                    files,
-                                    flags,
-                                    &file_name,
-                                    rd.data,
-                                    offset,
-                                    rd.len,
-                                    0,
-                                    false,
-                                    &file_id,
-                                );
-                            }
-                            true
-                        }
-                        None => false,
-                    };
-                    if !found {
-                        let (tx, files, flags) = state.new_file_tx(
-                            &file_fid,
-                            &file_name,
-                            STREAM_TOCLIENT,
-                        );
-                        if let Some(SMBTransactionTypeData::FILE(ref mut tdf)) =
-                            tx.type_data
+            if !is_pipe {
+                let file_name = match state.guid2name_map.get(&file_fid) {
+                    Some(n) => n.to_vec(),
+                    None => Vec::new(),
+                };
+                let found = match state
+                    .get_file_tx_by_fuid(&file_fid, STREAM_TOCLIENT)
+                {
+                    Some((tx, files, flags)) => {
+                        if let Some(SMBTransactionTypeData::FILE(
+                            ref mut tdf,
+                        )) = tx.type_data
                         {
-                            let file_id: u32 = tx.id as u32;
+                            let file_id : u32 = tx.id as u32;
                             SCLogDebug!(
                                 "FID {:?} found at tx {}",
                                 file_fid,
@@ -1190,37 +1120,67 @@ pub fn smb1_read_response_record<'b>(state: &mut SMBState, r: &SmbRecord<'b>) {
                                 false,
                                 &file_id,
                             );
-                            tdf.share_name = share_name;
                         }
-                        tx.vercmd.set_smb1_cmd(SMB1_COMMAND_READ_ANDX);
+                        true
                     }
-                } else {
-                    SCLogDebug!("SMBv1 READ response from PIPE");
-                    let hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_HEADER);
-                    let vercmd = SMBVerCmdStat::new1(r.command);
-
-                    // hack: we store fid with ssn id mixed in, but here we want the
-                    // real thing instead.
-                    let pure_fid = if file_fid.len() > 2 {
-                        &file_fid[0..2]
-                    } else {
-                        &[]
-                    };
-                    smb_read_dcerpc_record(
-                        state, vercmd, hdr, &pure_fid, &rd.data,
+                    None => false,
+                };
+                if !found {
+                    let (tx, files, flags) = state.new_file_tx(
+                        &file_fid,
+                        &file_name,
+                        STREAM_TOCLIENT,
                     );
+                    if let Some(SMBTransactionTypeData::FILE(ref mut tdf)) =
+                        tx.type_data
+                    {
+                        let file_id: u32 = tx.id as u32;
+                        SCLogDebug!(
+                            "FID {:?} found at tx {}",
+                            file_fid,
+                            tx.id
+                        );
+                        filetracker_newchunk(
+                            &mut tdf.file_tracker,
+                            files,
+                            flags,
+                            &file_name,
+                            rd.data,
+                            offset,
+                            rd.len,
+                            0,
+                            false,
+                            &file_id,
+                        );
+                        tdf.share_name = share_name;
+                    }
+                    tx.vercmd.set_smb1_cmd(SMB1_COMMAND_READ_ANDX);
                 }
+            } else {
+                SCLogDebug!("SMBv1 READ response from PIPE");
+                let hdr = SMBCommonHdr::from1(r, SMBHDR_TYPE_HEADER);
+                let vercmd = SMBVerCmdStat::new1(r.command);
 
-                state.set_file_left(
-                    STREAM_TOCLIENT,
-                    rd.len,
-                    rd.data.len() as u32,
-                    file_fid.to_vec(),
+                // hack: we store fid with ssn id mixed in, but here we want the
+                // real thing instead.
+                let pure_fid = if file_fid.len() > 2 {
+                    &file_fid[0..2]
+                } else {
+                    &[]
+                };
+                smb_read_dcerpc_record(
+                    state, vercmd, hdr, &pure_fid, &rd.data,
                 );
             }
-            _ => {
-                events.push(SMBEvent::MalformedData);
-            }
+
+            state.set_file_left(
+                STREAM_TOCLIENT,
+                rd.len,
+                rd.data.len() as u32,
+                file_fid.to_vec(),
+            );
+        } else {
+            events.push(SMBEvent::MalformedData);
         }
     }
 
