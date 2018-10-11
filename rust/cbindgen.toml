@@ -76,7 +76,9 @@ include = ["AppLayerGetTxIterTuple"]
 # A list of items to not include in the generated bindings
 # default: []
 exclude = [
+    "AppProto",
     "AppLayerDecoderEvents",
+    "AppLayerEventType",
     "CLuaState",
     "DetectEngineState",
     "Flow",
@@ -88,6 +90,7 @@ exclude = [
     "KRB5Transaction",
     "NTPState",
     "NTPTransaction",
+    "Packet",
     "SNMPState",
     "SNMPTransaction",
     "SuricataContext",
@@ -109,7 +112,7 @@ exclude = [
 # * "functions":
 #
 # default: []
-item_types = ["structs","opaque","functions"]
+item_types = ["structs","opaque","functions","typedefs"]
 
 # Whether applying rules in export.rename prevents export.prefix from applying.
 #
