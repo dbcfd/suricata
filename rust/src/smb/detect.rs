@@ -15,7 +15,6 @@
  * 02110-1301, USA.
  */
 use crate::core::*;
-use crate::log::*;
 use crate::smb::smb::*;
 use std;
 use std::ptr;

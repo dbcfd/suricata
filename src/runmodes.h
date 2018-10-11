@@ -41,6 +41,7 @@ enum RunModes {
     RUNMODE_NAPATECH,
     RUNMODE_UNIX_SOCKET,
     RUNMODE_WINDIVERT,
+    RUNMODE_IPC,
     RUNMODE_USER_MAX, /* Last standard running mode */
     RUNMODE_LIST_KEYWORDS,
     RUNMODE_LIST_APP_LAYERS,
@@ -88,6 +89,8 @@ void RunModeShutDown(void);
 int RunModeOutputFileEnabled(void);
 /* bool indicating if filedata logger is enabled */
 int RunModeOutputFiledataEnabled(void);
+/** bool indicating if run mode requires blocking writes for unix sockets */
+bool RunModeBlockingWrites(int run_mode_to_check);
 /** bool indicating if run mode is offline */
 bool IsRunModeOffline(int run_mode_to_check);
 
@@ -99,6 +102,7 @@ int RunModeNeedsBypassManager(void);
 #include "runmode-pfring.h"
 #include "runmode-tile.h"
 #include "runmode-nfq.h"
+#include "runmode-ipc.h"
 #include "runmode-ipfw.h"
 #include "runmode-erf-file.h"
 #include "runmode-erf-dag.h"

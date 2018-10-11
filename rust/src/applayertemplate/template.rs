@@ -18,7 +18,6 @@
 use crate::applayer::{self, LoggerFlags};
 use crate::applayertemplate::parser;
 use crate::core::{self, AppProto, Flow, ALPROTO_UNKNOWN};
-use crate::log::*;
 use crate::parser::*;
 use libc;
 use nom;

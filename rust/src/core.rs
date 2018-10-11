@@ -142,6 +142,8 @@ pub struct SuricataContext {
     pub FileContainerRecycle: SCFileContainerRecycle,
     pub FilePrune: SCFilePrune,
     pub FileSetTx: SCFileSetTx,
+
+    pub SetPacketData: crate::ipc::SCSetPacketDataFunc
 }
 
 #[allow(non_snake_case)]

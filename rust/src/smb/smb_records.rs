@@ -15,7 +15,6 @@
  * 02110-1301, USA.
  */
 
-use crate::log::*;
 use nom::*;
 
 /// parse a UTF16 string that is null terminated. Normally by 2 null

@@ -24,3 +24,5 @@ kerberos-parser = "~0.2"
 
 ntp-parser = { git = "https://github.com/rusticata/ntp-parser.git", branch = "nom4" }
 ipsec-parser = { git = "https://github.com/dbcfd/ipsec-parser.git", branch = "nom4" }
+
+packet-ipc = { git = "https://github.com/dbcfd/packet-ipc.git", branch = "master" }

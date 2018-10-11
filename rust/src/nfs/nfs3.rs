@@ -18,7 +18,6 @@
 // written by Victor Julien
 
 use crate::core::*;
-use crate::log::*;
 use nom::*;
 
 use crate::nfs::nfs::*;

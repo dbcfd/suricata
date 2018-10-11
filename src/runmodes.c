@@ -111,6 +111,8 @@ static TAILQ_HEAD(, OutputFreeList_) output_free_list =
 static const char *RunModeTranslateModeToName(int runmode)
 {
     switch (runmode) {
+        case RUNMODE_IPC:
+            return "IPC";
         case RUNMODE_PCAP_DEV:
             return "PCAP_DEV";
         case RUNMODE_PCAP_FILE:
@@ -213,6 +215,7 @@ void RunModeRegisterRunModes(void)
 {
     memset(runmodes, 0, sizeof(runmodes));
 
+    RunModeIpcRegister();
     RunModeIdsPcapRegister();
     RunModeFilePcapRegister();
     RunModeIdsPfringRegister();
@@ -294,6 +297,9 @@ void RunModeDispatch(int runmode, const char *custom_mode)
 
     if (custom_mode == NULL || strcmp(custom_mode, "auto") == 0) {
         switch (runmode) {
+            case RUNMODE_IPC:
+                custom_mode = RunModeIpcGetDefaultMode();
+                break;
             case RUNMODE_PCAP_DEV:
                 custom_mode = RunModeIdsGetDefaultMode();
                 break;
@@ -497,9 +503,20 @@ int RunModeOutputFiledataEnabled(void)
     return filedata_logger_count > 0;
 }
 
+bool RunModeBlockingWrites(int run_mode_to_check)
+{
+    switch(run_mode_to_check) {
+        case RUNMODE_IPC:
+            return true;
+            break;
+        default:
+            return !IsRunModeOffline(run_mode_to_check);
+    }
+}
 bool IsRunModeOffline(int run_mode_to_check)
 {
     switch(run_mode_to_check) {
+        case RUNMODE_IPC:
         case RUNMODE_CONF_TEST:
         case RUNMODE_PCAP_FILE:
         case RUNMODE_ERF_FILE:

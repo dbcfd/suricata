@@ -19,7 +19,6 @@
  * - check all parsers for calls on non-SUCCESS status
  */
 use crate::core::*;
-use crate::log::*;
 
 use crate::smb::dcerpc::*;
 use crate::smb::events::*;

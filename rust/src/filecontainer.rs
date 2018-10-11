@@ -19,7 +19,6 @@ use libc::c_void;
 use std::ptr;
 
 use crate::core::*;
-use crate::log::*;
 
 pub struct File;
 #[repr(C)]

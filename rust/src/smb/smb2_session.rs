@@ -14,8 +14,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA.
  */
-use crate::log::*;
-
 use crate::smb::smb::*;
 use crate::smb::smb2_records::*;
 //use smb::events::*;

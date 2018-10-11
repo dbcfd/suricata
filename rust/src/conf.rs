@@ -22,8 +22,6 @@ use std::os::raw::c_void;
 use std::ptr;
 use std::str;
 
-use crate::log::*;
-
 extern "C" {
     fn ConfGet(key: *const c_char, res: *mut *const c_char) -> i8;
     fn ConfGetChildValue(

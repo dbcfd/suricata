@@ -35,7 +35,6 @@ use std::collections::HashMap;
 use crate::applayer;
 use crate::applayer::LoggerFlags;
 use crate::core::*;
-use crate::log::*;
 
 use crate::smb::nbss_records::*;
 use crate::smb::smb1_records::*;

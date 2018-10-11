@@ -18,7 +18,6 @@
 use crate::core::*;
 use crate::filecontainer::*;
 use crate::filetracker::*;
-use crate::log::*;
 
 use crate::smb::smb::*;
 

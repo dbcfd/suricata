@@ -352,6 +352,7 @@ respond-reject-libnet11.h respond-reject-libnet11.c \
 runmode-af-packet.c runmode-af-packet.h \
 runmode-erf-dag.c runmode-erf-dag.h \
 runmode-erf-file.c runmode-erf-file.h \
+runmode-ipc.c runmode-ipc.h \
 runmode-ipfw.c runmode-ipfw.h \
 runmode-napatech.c runmode-napatech.h \
 runmode-netmap.c runmode-netmap.h \
@@ -369,6 +370,7 @@ rust.h \
 source-af-packet.c source-af-packet.h \
 source-erf-dag.c source-erf-dag.h \
 source-erf-file.c source-erf-file.h \
+source-ipc.c source-ipc.h \
 source-ipfw.c source-ipfw.h \
 source-mpipe.c source-mpipe.h \
 source-napatech.c source-napatech.h \

@@ -20,7 +20,6 @@
 use nom::*;
 
 use crate::core::*;
-use crate::log::*;
 
 use crate::nfs::nfs::*;
 use crate::nfs::nfs4_records::*;

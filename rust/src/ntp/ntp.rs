@@ -26,8 +26,6 @@ use ntp_parser::*;
 use std;
 use std::ffi::{CStr, CString};
 
-use crate::log::*;
-
 #[repr(u32)]
 pub enum NTPEvent {
     UnsolicitedResponse = 0,

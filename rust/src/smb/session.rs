@@ -16,7 +16,6 @@
  */
 
 use crate::kerberos::*;
-use crate::log::*;
 use crate::smb::auth::*;
 use crate::smb::smb::*;
 use crate::smb::smb1_session::*;

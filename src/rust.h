@@ -18,6 +18,8 @@
 #ifndef __RUST_H__
 #define __RUST_H__
 
+#include "decode.h"
+
 typedef struct SuricataContext_ {
     SCError (*SCLogMessage)(const SCLogLevel, const char *, const unsigned int,
             const char *, const SCError, const char *message);
@@ -38,6 +40,16 @@ typedef struct SuricataContext_ {
     void (*FileContainerRecycle)(FileContainer *ffc);
     void (*FilePrune)(FileContainer *ffc);
     void (*FileSetTx)(FileContainer *, uint64_t);
+
+    int32_t (*SetPacketData)(
+            Packet *, //packet pointer
+            uint8_t *, //packet data
+            uint32_t,  //packet data length
+            uint32_t, //linktype
+            struct timeval, //timestamp
+            OnExtPacketRelease, //release function
+            uint8_t * //user data
+            );
 
 } SuricataContext;
 

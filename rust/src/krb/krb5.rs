@@ -34,8 +34,6 @@ use nom::{be_u32};
 use std;
 use std::ffi::{CStr, CString};
 
-use crate::log::*;
-
 #[repr(u32)]
 pub enum KRB5Event {
     MalformedData = 0,

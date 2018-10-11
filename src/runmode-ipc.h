@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 Open Information Security Foundation
+/* Copyright (C) 2007-2010 Open Information Security Foundation
  *
  * You can copy, redistribute or modify this Program under the terms of
  * the GNU General Public License version 2 as published by the Free
@@ -15,38 +15,16 @@
  * 02110-1301, USA.
  */
 
-#![cfg_attr(feature = "strict", deny(warnings))]
+/** \file
+ *
+ *  \author Danny Browning <danny.browning@protectwise.com>
+ */
+#ifndef __RUNMODE_IPC_H__
+#define __RUNMODE_IPC_H__
 
-#[macro_use]
-pub mod log;
+int RunModeIpcSingle(void);
+int RunModeIpcAutoFp(void);
+void RunModeIpcRegister(void);
+const char *RunModeIpcGetDefaultMode(void);
 
-#[macro_use]
-pub mod core;
-
-pub mod conf;
-pub mod json;
-#[macro_use]
-pub mod applayer;
-pub mod filecontainer;
-pub mod filetracker;
-#[macro_use]
-pub mod parser;
-pub mod kerberos;
-
-#[cfg(feature = "lua")]
-pub mod lua;
-
-pub mod dns;
-pub mod ftp;
-pub mod krb;
-pub mod nfs;
-pub mod smb;
-
-pub mod ikev2;
-
-pub mod applayertemplate;
-pub mod dhcp;
-pub mod ntp;
-pub mod tftp;
-
-pub mod ipc;
+#endif /* __RUNMODE_IPC_H__ */

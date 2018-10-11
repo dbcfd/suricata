@@ -145,7 +145,7 @@ static int PacketPoolIsEmpty(PktPool *pool)
     return 1;
 }
 
-void PacketPoolWait(void)
+int PacketPoolWait(void)
 {
     PktPool *my_pool = GetThreadPacketPool();
 
@@ -158,6 +158,17 @@ void PacketPoolWait(void)
 
     while(PacketPoolIsEmpty(my_pool))
         cc_barrier();
+
+    int i = 0;
+    Packet *p = NULL;
+    p = my_pool->head;
+    while (p != NULL) {
+        ++i;
+
+        p = p->next;
+    }
+
+    return i;
 }
 
 /** \brief Wait until we have the requested amount of packets in the pool
@@ -176,16 +187,10 @@ void PacketPoolWaitForN(int n)
     Packet *p = NULL;
 
     while (1) {
-        int i = 0;
-        PacketPoolWait();
+        int i = PacketPoolWait();
 
-        /* count packets in our stack */
-        p = my_pool->head;
-        while (p != NULL) {
-            if (++i == n)
-                return;
-
-            p = p->next;
+        if (i >= n) {
+            return;
         }
 
         /* continue counting in the return stack */

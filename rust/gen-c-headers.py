@@ -65,6 +65,7 @@ type_map = {
     "c_int": "int",
     "libc::int8_t": "int8_t",
     "libc::int32_t": "int32_t",
+    "libc::int64_t": "int64_t",
 
     "libc::uint8_t": "uint8_t",
     "libc::uint16_t": "uint16_t",
@@ -102,6 +103,8 @@ type_map = {
     "CLuaState": "lua_State",
     "Store": "Store",
     "AppProto": "AppProto",
+    "Packet": "Packet",
+    "IpcClient": "IpcClient",
 }
 
 def convert_type(rs_type):
@@ -128,7 +131,9 @@ def convert_type(rs_type):
                 return "const %s *" % (type_map[rtype])
             elif mod in [
                     "*mut *const",
-                    "*mut*const"]:
+                    "*mut*const",
+                    "*mut *mut",
+                    "*mut*mut"]:
                 return "%s **" % (type_map[rtype])
             else:
                 raise Exception("Unknown modifier '%s' in '%s'." % (

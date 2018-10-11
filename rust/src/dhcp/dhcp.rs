@@ -22,7 +22,6 @@ use crate::core::{
 };
 use crate::core::{AppProto, Flow, ALPROTO_UNKNOWN};
 use crate::dhcp::parser::*;
-use crate::log::*;
 use crate::parser::*;
 use libc;
 use std;

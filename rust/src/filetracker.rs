@@ -29,7 +29,6 @@ use crate::filecontainer::*;
  * and new data is no longer pushed down to the lower level APIs.
  * The tracker does continue to follow the file.
  */
-use crate::log::*;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
 

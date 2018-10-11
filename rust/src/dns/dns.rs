@@ -24,7 +24,6 @@ use std::mem::transmute;
 use crate::applayer::LoggerFlags;
 use crate::core;
 use crate::dns::parser;
-use crate::log::*;
 
 /// DNS record types.
 pub const DNS_RECORD_TYPE_A: u16 = 1;

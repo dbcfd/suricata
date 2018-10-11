@@ -28,7 +28,6 @@ use crate::applayer::LoggerFlags;
 use crate::core::*;
 use crate::filecontainer::*;
 use crate::filetracker::*;
-use crate::log::*;
 
 use crate::nfs::nfs2_records::*;
 use crate::nfs::nfs3_records::*;

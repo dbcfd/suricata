@@ -30,8 +30,6 @@ use libc;
 use std;
 use std::ffi::{CStr, CString};
 
-use crate::log::*;
-
 #[repr(u32)]
 pub enum IKEV2Event {
     MalformedData = 0,
