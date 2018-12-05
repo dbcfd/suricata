@@ -73,11 +73,9 @@ pub extern "C" fn ipc_populate_packets(ipc: *mut IpcClient, packets: *mut *mut P
                         return -1;
                     }
                     if let Ok(dur) = packet.timestamp().duration_since(std::time::UNIX_EPOCH) {
-                        let seconds = dur.as_secs() as i64;
-                        let micros = dur.subsec_micros() as i32;
                         let ts = libc::timeval {
-                            tv_sec: seconds,
-                            tv_usec: micros
+                            tv_sec: dur.as_secs() as _,
+                            tv_usec: dur.subsec_micros() as _
                         };
                         let data = packet.data();
                         if (sc.SetPacketData)(
