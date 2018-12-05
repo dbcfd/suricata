@@ -370,6 +370,7 @@ impl NFSState {
             tc_chunk_xid: 0,
             ts_chunk_left: 0,
             tc_chunk_left: 0,
+            ts_chunk_fh: vec![],
             ts_ssn_gap: false,
             tc_ssn_gap: false,
             ts_gap: false,

@@ -147,11 +147,9 @@ impl FileTransferTracker {
         is_last: bool,
         xid: &u32,
     ) -> u32 {
-        if self.chunk_left != 0 {
-            panic!("complete existing chunk first");
-        }
-        if self.fill_bytes != 0 {
-            panic!("complete existing fill bytes first");
+        if self.chunk_left != 0 || self.fill_bytes != 0 {
+            SCLogDebug!("current chunk incomplete: truncating");
+            self.trunc(files, flags);
         }
 
         SCLogDebug!(
