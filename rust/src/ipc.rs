@@ -85,7 +85,7 @@ pub extern "C" fn ipc_populate_packets(ipc: *mut IpcClient, packets: *mut *mut P
                             1, //should probably come with the packet
                             ts,
                             ipc_packet_callback,
-                            packet.into_raw() as *mut libc::c_void
+                            packet.into_mut_ptr() as *mut libc::c_void
                         ) != 0 {
                             SCLogNotice!("Failed to set packet data");
                             return -1;
