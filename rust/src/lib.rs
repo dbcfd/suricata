@@ -35,6 +35,11 @@ extern crate tls_parser;
 extern crate x509_parser;
 
 #[macro_use]
+extern crate serde;
+#[macro_use]
+extern crate lazy_static;
+
+#[macro_use]
 pub mod log;
 
 #[macro_use]
@@ -54,6 +59,7 @@ pub mod kerberos;
 pub mod lua;
 
 pub mod dns;
+pub mod flow;
 pub mod nfs;
 pub mod ftp;
 pub mod smb;
