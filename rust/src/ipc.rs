@@ -14,11 +14,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA.
  */
-use packet_ipc::packet::{AsIpcPacket, Packet as IpcPacket};
+use packet_ipc::{AsIpcPacket, Client, Packet as IpcPacket};
 use std::sync::Arc;
 
 pub struct IpcClient {
-    pub inner: packet_ipc::client::Client,
+    pub inner: Client,
 }
 
 //IPC Integration
@@ -93,13 +93,6 @@ pub extern "C" fn rs_ipc_populate_packets(ipc: *mut IpcClient, packets: *mut *mu
                 }
 
                 for (idx, packet) in ipc_packets.drain(..).enumerate() {
-                    let packet = match packet.into_packet() {
-                        Ok(p) => p,
-                        Err(_) => {
-                            SCLogNotice!("Failed to convert ipc packet");
-                            return -1;
-                        }
-                    };
                     let raw_p = unsafe { *packets.offset(idx as isize) };
                     if raw_p.is_null() {
                         SCLogNotice!("Packet passed to ipc_populate_packets was null");
@@ -136,7 +129,7 @@ pub extern "C" fn rs_ipc_populate_packets(ipc: *mut IpcClient, packets: *mut *mu
 pub extern "C" fn rs_create_ipc_client(server_name: *const std::os::raw::c_char, client: *mut *mut IpcClient) -> u32 {
     let server = unsafe { std::ffi::CStr::from_ptr(server_name) };
     if let Ok(s) = server.to_str() {
-        if let Ok(ipc) = packet_ipc::client::Client::new(s.to_string()) {
+        if let Ok(ipc) = Client::new(s.to_string()) {
             let raw = Box::into_raw(Box::new(IpcClient { inner: ipc }));
             unsafe { *client = raw };
             1

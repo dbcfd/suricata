@@ -28,8 +28,7 @@ static TmEcode ReceiveIpcThreadInit(ThreadVars *, const void *, void **);
 static void ReceiveIpcThreadExitStats(ThreadVars *, void *);
 static TmEcode ReceiveIpcThreadDeinit(ThreadVars *, void *);
 
-static TmEcode DecodeIpc(ThreadVars *, Packet *, void *, PacketQueue *,
-                              PacketQueue *);
+static TmEcode DecodeIpc(ThreadVars *, Packet *, void *);
 static TmEcode DecodeIpcThreadInit(ThreadVars *, const void *, void **);
 static TmEcode DecodeIpcThreadDeinit(ThreadVars *tv, void *data);
 
@@ -271,7 +270,7 @@ TmEcode ReceiveIpcThreadDeinit(ThreadVars *tv, void *data)
  * \param data pointer that gets cast into PcapThreadVars for ptv
  * \param pq pointer to the current PacketQueue
  */
-TmEcode DecodeIpc(ThreadVars *tv, Packet *p, void *data, PacketQueue *pq, PacketQueue *postpq)
+TmEcode DecodeIpc(ThreadVars *tv, Packet *p, void *data)
 {
     SCEnter();
     DecodeThreadVars *dtv = (DecodeThreadVars *)data;
@@ -287,20 +286,20 @@ TmEcode DecodeIpc(ThreadVars *tv, Packet *p, void *data, PacketQueue *pq, Packet
     /* call the decoder */
     switch(p->datalink) {
         case LINKTYPE_LINUX_SLL:
-            DecodeSll(tv, dtv, p, GET_PKT_DATA(p), GET_PKT_LEN(p), pq);
+            DecodeSll(tv, dtv, p, GET_PKT_DATA(p), GET_PKT_LEN(p));
             break;
         case LINKTYPE_ETHERNET:
-            DecodeEthernet(tv, dtv, p,GET_PKT_DATA(p), GET_PKT_LEN(p), pq);
+            DecodeEthernet(tv, dtv, p, GET_PKT_DATA(p), GET_PKT_LEN(p));
             break;
         case LINKTYPE_PPP:
-            DecodePPP(tv, dtv, p, GET_PKT_DATA(p), GET_PKT_LEN(p), pq);
+            DecodePPP(tv, dtv, p, GET_PKT_DATA(p), GET_PKT_LEN(p));
             break;
         case LINKTYPE_RAW:
         case LINKTYPE_GRE_OVER_IP:
-            DecodeRaw(tv, dtv, p, GET_PKT_DATA(p), GET_PKT_LEN(p), pq);
+            DecodeRaw(tv, dtv, p, GET_PKT_DATA(p), GET_PKT_LEN(p));
             break;
         case LINKTYPE_NULL:
-            DecodeNull(tv, dtv, p, GET_PKT_DATA(p), GET_PKT_LEN(p), pq);
+            DecodeNull(tv, dtv, p, GET_PKT_DATA(p), GET_PKT_LEN(p));
             break;
         default:
             SCLogError(SC_ERR_DATALINK_UNIMPLEMENTED, "Error: datalink type %" PRId32 " not yet supported in module DecodePcap", p->datalink);

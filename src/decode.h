@@ -911,7 +911,7 @@ void PacketFreeOrRelease(Packet *p);
 int PacketCallocExtPkt(Packet *p, int datalen);
 int PacketCopyData(Packet *p, const uint8_t *pktdata, uint32_t pktlen);
 int PacketSetData(Packet *p, const uint8_t *pktdata, uint32_t pktlen);
-int PacketSetDataWithRelease(Packet *p, const uint8_t *pktdata, uint32_t pktlen,
+int PacketSetDataWithRelease(Packet *p, uint8_t *pktdata, uint32_t pktlen,
         uint32_t linktype, uint32_t ts_sec, uint32_t ts_usec, OnExtPacketRelease on_release,
         uint8_t *userdata);
 int PacketCopyDataOffset(Packet *p, uint32_t offset, const uint8_t *data, uint32_t datalen);

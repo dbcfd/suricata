@@ -678,7 +678,7 @@ inline int PacketSetData(Packet *p, const uint8_t *pktdata, uint32_t pktlen) {
 
 inline int32_t PacketSetDataWithRelease(
         Packet *p,
-        const uint8_t *pktdata,
+        uint8_t *pktdata,
         uint32_t pktlen,
         uint32_t linktype,
         uint32_t ts_sec,
