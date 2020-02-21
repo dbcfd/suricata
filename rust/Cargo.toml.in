@@ -35,5 +35,4 @@ ipsec-parser = "0.4"
 snmp-parser = "0.3.0"
 tls-parser = "0.8"
 x509-parser = "0.4"
-#packet-ipc = "0.8"
-packet-ipc = { git = "https://github.com/dbcfd/packet-ipc.git", branch = "zero-copy" }
+packet-ipc = "0.9"
